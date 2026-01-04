@@ -34,7 +34,15 @@
 	],
 	"observability": {
 		"enabled": true
-	}
+	},
+	"d1_databases": [
+		{
+			"binding": "voucher_page",
+			"database_name": "voucher-page",
+			"database_id": "6fe9e0cc-c949-465a-bcb4-e74eaba01f44",
+			"remote": true
+		}
+	]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

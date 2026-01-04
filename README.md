@@ -1,47 +1,63 @@
-# OpenNext Starter
+# voucher management system
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+a full-stack application for managing and distributing vouchers, built with Next.js and Cloudflare.
 
-## Getting Started
+## features
 
-Read the documentation at https://opennext.js.org/cloudflare.
+- admin dashboard for staff and customer management.
+- voucher inventory with image uploads to Cloudflare R2.
+- editable voucher descriptions and status tracking.
+- customer portal to view active and used vouchers.
+- secure login for customers using phone number and date of birth.
+- staff authentication using JWT.
+- soft delete implementation for users and vouchers.
 
-## Develop
+## tech stack
 
-Run the Next.js development server:
+- [Next.js 15](https://nextjs.org)
+- [Hono](https://hono.dev)
+- [Cloudflare D1](https://developers.cloudflare.com/d1) (SQL database)
+- [Cloudflare R2](https://developers.cloudflare.com/r2) (object storage)
+- [Drizzle ORM](https://orm.drizzle.team)
+- [JWT](https://jwt.io) authentication
+- [Tailwind CSS](https://tailwindcss.com)
+- [Shadcn UI](https://ui.shadcn.com)
+
+## development
+
+### prerequisites
+
+- Node.js and npm
+- Cloudflare account with D1 and R2 enabled
+
+### installation
+
+```bash
+npm install
+```
+
+### local development
+
+run the Next.js development server:
 
 ```bash
 npm run dev
-# or similar package manager command
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### deployment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Preview
-
-Preview the application locally on the Cloudflare runtime:
-
-```bash
-npm run preview
-# or similar package manager command
-```
-
-## Deploy
-
-Deploy the application to Cloudflare:
+deploy the frontend to Cloudflare Pages:
 
 ```bash
 npm run deploy
-# or similar package manager command
 ```
 
-## Learn More
+deploy the API to Cloudflare Workers:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run deploy-api
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+the project uses Drizzle ORM for schema management. database migrations are handled via Wrangler for Cloudflare D1.

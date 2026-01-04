@@ -50,3 +50,7 @@ next-env.d.ts
 
 
 !.dev.vars.example
+/api/node_modules
+/api/.wrangler
+/api/.dev.vars
+/api/dist
