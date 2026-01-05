@@ -3,6 +3,7 @@ import { eq, and, desc, count, like, or, isNull, inArray, isNotNull } from 'driz
 import { getDb } from './db/db'
 import { users, vouchers } from './db/schema'
 import { SignJWT, jwtVerify } from 'jose'
+import bcrypt from 'bcryptjs'
 
 type Bindings = {
   DB: D1Database
@@ -67,8 +68,12 @@ app.post('/auth/login', async (c) => {
     )
   })
 
-  // In production, use bcrypt/argon2 to verify password
-  if (!user || user.password !== password) {
+  if (!user || !user.password) {
+    return c.json({ error: 'Invalid credentials' }, 401)
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, user.password)
+  if (!isPasswordValid) {
     return c.json({ error: 'Invalid credentials' }, 401)
   }
 
@@ -110,30 +115,63 @@ app.post('/auth/customer/login', async (c) => {
   return c.json({ token, user: { username: user.username, role: user.role, name: user.name, phoneNumber: user.phoneNumber } })
 })
 
-// Initial setup endpoint to create the first admin
-app.get('/setup', async (c) => {
-  const db = getDb(c.env.DB)
-  const existingUsers = await db.select().from(users).limit(1)
-  
-  if (existingUsers.length > 0) {
-    return c.json({ error: 'System already setup' }, 400)
-  }
-
-  await db.insert(users).values({
-    username: 'admin',
-    password: 'admin-password', // Change this!
-    name: 'System Admin',
-    role: 'admin',
-    phoneNumber: '0000000000',
-    dateOfBirth: '2000-01-01'
-  })
-
-  return c.json({ message: 'Admin user created. Username: admin, Password: admin-password' })
-})
-
 app.get('/auth/me', authMiddleware, async (c) => {
   const user = c.get('user')
   return c.json({ user })
+})
+
+app.get('/stats', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+
+  const db = getDb(c.env.DB)
+
+  const [
+    voucherCounts,
+    totalCustomers,
+    recentVouchers
+  ] = await Promise.all([
+    db.select({ 
+      status: vouchers.status, 
+      count: count() 
+    }).from(vouchers).where(isNull(vouchers.deletedAt)).groupBy(vouchers.status),
+    db.select({ value: count() }).from(users).where(and(eq(users.role, 'customer'), isNull(users.deletedAt))),
+    db.select({
+      id: vouchers.id,
+      code: vouchers.code,
+      name: vouchers.name,
+      status: vouchers.status,
+      createdAt: vouchers.createdAt,
+      customerName: users.name,
+    })
+    .from(vouchers)
+    .leftJoin(users, eq(vouchers.bindedToPhoneNumber, users.phoneNumber))
+    .where(isNull(vouchers.deletedAt))
+    .orderBy(desc(vouchers.createdAt))
+    .limit(5)
+  ])
+
+  const voucherStats = {
+    total: 0,
+    available: 0,
+    active: 0,
+    claimed: 0
+  }
+
+  voucherCounts.forEach(vc => {
+    if (vc.status === 'available') voucherStats.available = vc.count
+    if (vc.status === 'active') voucherStats.active = vc.count
+    if (vc.status === 'claimed') voucherStats.claimed = vc.count
+    voucherStats.total += vc.count
+  })
+
+  return c.json({
+    vouchers: voucherStats,
+    customers: {
+      total: totalCustomers[0].value,
+    },
+    recentActivity: recentVouchers
+  })
 })
 
 app.get('/users/search', authMiddleware, async (c) => {
@@ -235,11 +273,12 @@ app.post('/users', authMiddleware, async (c) => {
   const username = targetRole === 'customer' ? (body.username || normalizedPhone) : body.username
   // For customers, password is their DOB if not provided (simple default)
   const password = targetRole === 'customer' ? (body.password || body.dateOfBirth?.replace(/-/g, '')) : body.password
+  const hashedPassword = await bcrypt.hash(password, 10)
 
   try {
     const newUser = await db.insert(users).values({
       username,
-      password, // In production, hash this
+      password: hashedPassword,
       name: body.name,
       phoneNumber: normalizedPhone,
       dateOfBirth: body.dateOfBirth,
@@ -263,9 +302,40 @@ app.post('/vouchers', authMiddleware, async (c) => {
   const newVoucher = await db.insert(vouchers).values({
     code: generateVoucherCode(),
     status: 'available',
+    name: body.name,
     imageUrl: body.imageUrl,
+    description: body.description,
   }).returning()
-  return c.json(newVoucher)
+  return c.json(newVoucher[0])
+})
+
+app.post('/vouchers/batch', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
+
+  const db = getDb(c.env.DB)
+  const body = await c.req.json()
+  const { count: batchCount, name, imageUrl, description } = body
+
+  if (!batchCount || batchCount <= 0) {
+    return c.json({ error: 'Invalid count' }, 400)
+  }
+
+  const newVouchers = []
+  for (let i = 0; i < batchCount; i++) {
+    newVouchers.push({
+      code: generateVoucherCode(),
+      status: 'available' as 'available' | 'active' | 'claimed',
+      name,
+      imageUrl,
+      description,
+    })
+  }
+
+  // SQLite has a limit on variables in a single query, so we might need to chunk this if batchCount is very large.
+  // For 100 vouchers, it should be fine.
+  const result = await db.insert(vouchers).values(newVouchers).returning()
+  return c.json(result)
 })
 
 app.post('/vouchers/upload', authMiddleware, async (c) => {
@@ -293,8 +363,28 @@ app.get('/vouchers/image/:name', async (c) => {
   const headers = new Headers()
   object.writeHttpMetadata(headers)
   headers.set('etag', object.httpEtag)
+  
+  // Ensure Content-Type is set for social media crawlers
+  if (!headers.has('Content-Type')) {
+    if (name.endsWith('.png')) headers.set('Content-Type', 'image/png')
+    else if (name.endsWith('.jpg') || name.endsWith('.jpeg')) headers.set('Content-Type', 'image/jpeg')
+    else if (name.endsWith('.webp')) headers.set('Content-Type', 'image/webp')
+    else if (name.endsWith('.svg')) headers.set('Content-Type', 'image/svg+xml')
+  }
 
   return new Response(object.body, { headers })
+})
+
+app.get('/vouchers/public/:id', async (c) => {
+  const id = c.req.param('id')
+  const db = getDb(c.env.DB)
+  const voucher = await db.select({
+    name: vouchers.name,
+    imageUrl: vouchers.imageUrl,
+  }).from(vouchers).where(and(eq(vouchers.id, id), isNull(vouchers.deletedAt))).get()
+
+  if (!voucher) return c.json({ error: 'Not found' }, 404)
+  return c.json(voucher)
 })
 
 app.patch('/vouchers/:id', authMiddleware, async (c) => {
@@ -307,9 +397,10 @@ app.patch('/vouchers/:id', authMiddleware, async (c) => {
 
   const updatedVoucher = await db.update(vouchers)
     .set({
+      name: body.name,
       description: body.description,
       imageUrl: body.imageUrl,
-      status: body.status,
+      status: body.status as 'available' | 'active' | 'claimed',
       expiryDate: body.expiryDate ? new Date(body.expiryDate) : undefined,
     })
     .where(eq(vouchers.id, id))
@@ -342,6 +433,7 @@ app.get('/vouchers', authMiddleware, async (c) => {
   const query = db.select({
     id: vouchers.id,
     code: vouchers.code,
+    name: vouchers.name,
     status: vouchers.status,
     createdAt: vouchers.createdAt,
     expiryDate: vouchers.expiryDate,
@@ -396,13 +488,65 @@ app.post('/vouchers/bind', authMiddleware, async (c) => {
   const updatedVoucher = await db.update(vouchers)
     .set({ 
       bindedToPhoneNumber: normalizePhone(phoneNumber),
-      status: 'active',
+      status: 'active' as 'available' | 'active' | 'claimed',
       expiryDate: expiryDate
     })
     .where(eq(vouchers.code, code))
     .returning()
     
-  return c.json(updatedVoucher)
+  return c.json(updatedVoucher[0])
+})
+
+app.post('/vouchers/bulk-bind', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+
+  const db = getDb(c.env.DB)
+  const { voucherName, phoneNumbers, expiryDays, expiryDate: customExpiryDate } = await c.req.json()
+
+  if (!phoneNumbers || !Array.isArray(phoneNumbers) || phoneNumbers.length === 0) {
+    return c.json({ error: 'No phone numbers provided' }, 400)
+  }
+
+  let expiryDate = new Date()
+  if (customExpiryDate) {
+    expiryDate = new Date(customExpiryDate)
+  } else {
+    expiryDate.setDate(expiryDate.getDate() + (expiryDays || 30))
+  }
+
+  // Find available vouchers with the same name
+  const availableVouchers = await db.select()
+    .from(vouchers)
+    .where(and(
+      eq(vouchers.status, 'available'),
+      eq(vouchers.name, voucherName),
+      isNull(vouchers.deletedAt)
+    ))
+    .limit(phoneNumbers.length)
+
+  if (availableVouchers.length < phoneNumbers.length) {
+    return c.json({ error: `Not enough available vouchers. Found ${availableVouchers.length}, need ${phoneNumbers.length}.` }, 400)
+  }
+
+  const results = []
+  for (let i = 0; i < phoneNumbers.length; i++) {
+    const voucher = availableVouchers[i]
+    const phoneNumber = normalizePhone(phoneNumbers[i])
+    
+    const updated = await db.update(vouchers)
+      .set({
+        bindedToPhoneNumber: phoneNumber,
+        status: 'active' as 'available' | 'active' | 'claimed',
+        expiryDate: expiryDate
+      })
+      .where(eq(vouchers.id, voucher.id))
+      .returning()
+    
+    results.push(updated[0])
+  }
+
+  return c.json({ success: true, count: results.length, data: results })
 })
 
 app.post('/vouchers/claim', authMiddleware, async (c) => {
@@ -497,7 +641,9 @@ app.patch('/users/:id', authMiddleware, async (c) => {
     if (body.username !== undefined) updateData.username = body.username
     if (body.phoneNumber !== undefined) updateData.phoneNumber = normalizePhone(body.phoneNumber)
     if (body.dateOfBirth !== undefined) updateData.dateOfBirth = body.dateOfBirth
-    if (body.password) updateData.password = body.password
+    if (body.password) {
+      updateData.password = await bcrypt.hash(body.password, 10)
+    }
     if (body.role && user.role === 'admin') updateData.role = body.role
 
     const oldPhone = targetUser.phoneNumber

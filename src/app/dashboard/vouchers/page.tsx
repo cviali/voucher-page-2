@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -39,8 +40,9 @@ import {
 import { formatDate } from "@/lib/utils";
 
 interface Voucher {
-  id: number;
+  id: string;
   code: string;
+  name: string | null;
   status: "available" | "active" | "claimed";
   bindedToPhoneNumber: string | null;
   createdAt: string;
@@ -59,9 +61,16 @@ export default function VouchersPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isBatchSheetOpen, setIsBatchSheetOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [batchForm, setBatchForm] = useState({
+    count: 10,
+    name: "",
+    imageUrl: "",
+    description: ""
+  });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -107,31 +116,28 @@ export default function VouchersPage() {
   if (authLoading) return null;
   if (!user || (user.role !== "admin" && user.role !== "cashier")) return null;
 
-  const generateVoucher = async () => {
+  const handleBatchCreate = async () => {
+    if (!batchForm.name) {
+      toast.error("Voucher name is required");
+      return;
+    }
     setIsGenerating(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/vouchers", {
+      const res = await fetch("/api/vouchers/batch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          imageUrl:
-            "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&auto=format&fit=crop&q=60",
-        }),
+        body: JSON.stringify(batchForm),
       });
-
       if (res.ok) {
-        toast.success("Voucher generated successfully");
-        if (page === 1) {
-          fetchVouchers(1);
-        } else {
-          setPage(1);
-        }
+        toast.success(`Successfully created ${batchForm.count} vouchers`);
+        setIsBatchSheetOpen(false);
+        fetchVouchers(page);
       } else {
-        toast.error("Failed to generate voucher");
+        toast.error("Failed to generate vouchers");
       }
     } catch {
       toast.error("Connection error");
@@ -264,14 +270,12 @@ export default function VouchersPage() {
             Manage and monitor all voucher codes in the system.
           </p>
         </div>
-        <Button onClick={generateVoucher} disabled={isGenerating}>
-          {isGenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="h-4 w-4" />
-          )}
-          Generate Voucher
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsBatchSheetOpen(true)} disabled={isGenerating}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Vouchers
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -284,7 +288,7 @@ export default function VouchersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Code</TableHead>
+                  <TableHead className="pl-6">Voucher</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Created At</TableHead>
@@ -312,17 +316,20 @@ export default function VouchersPage() {
                       onClick={() => handleRowClick(voucher)}
                     >
                       <TableCell className="font-mono font-medium pl-6">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           {voucher.imageUrl && (
                             <Image 
                               src={voucher.imageUrl} 
                               alt="Voucher" 
-                              width={32}
-                              height={32}
-                              className="w-8 h-8 rounded object-cover border"
+                              width={40}
+                              height={40}
+                              className="w-10 h-10 rounded-md object-cover border shadow-sm"
                             />
                           )}
-                          {voucher.code}
+                          <div className="flex flex-col">
+                            <span className="font-bold text-sm text-foreground">{voucher.name || 'Unnamed Voucher'}</span>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{voucher.code}</span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(voucher.status)}</TableCell>
@@ -389,6 +396,21 @@ export default function VouchersPage() {
           </SheetHeader>
 
           <div className="grid gap-6 p-4">
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground font-bold">
+                Voucher Name
+              </Label>
+              <Input
+                placeholder="Enter voucher name..."
+                defaultValue={selectedVoucher?.name || ""}
+                onBlur={(e) => {
+                  if (e.target.value !== selectedVoucher?.name) {
+                    handleUpdateVoucher({ name: e.target.value });
+                  }
+                }}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label className="text-xs uppercase text-muted-foreground font-bold">
                 Voucher Image
@@ -556,6 +578,77 @@ export default function VouchersPage() {
                 <Trash2 className="mr-2 h-4 w-4" />
               )}
               Delete Voucher
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={isBatchSheetOpen} onOpenChange={setIsBatchSheetOpen}>
+        <SheetContent className="sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Batch Create Vouchers</SheetTitle>
+            <SheetDescription>
+              Create multiple vouchers with the same details.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="grid gap-6 p-4">
+            <div className="space-y-2">
+              <Label htmlFor="batch-count">Number of Vouchers</Label>
+              <Input
+                id="batch-count"
+                type="number"
+                value={batchForm.count}
+                onChange={(e) => setBatchForm({ ...batchForm, count: parseInt(e.target.value) })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="batch-name">Voucher Name</Label>
+              <Input
+                id="batch-name"
+                placeholder="e.g. Welcome Discount"
+                value={batchForm.name}
+                onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="batch-image">Image URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="batch-image"
+                  placeholder="https://..."
+                  value={batchForm.imageUrl}
+                  onChange={(e) => setBatchForm({ ...batchForm, imageUrl: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="batch-description">Description / Terms</Label>
+              <Textarea
+                id="batch-description"
+                placeholder="Enter terms and conditions (one per line)"
+                className="min-h-[100px]"
+                value={batchForm.description}
+                onChange={(e) => setBatchForm({ ...batchForm, description: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <SheetFooter className="mt-6">
+            <Button
+              className="w-full"
+              disabled={isGenerating}
+              onClick={handleBatchCreate}
+            >
+              {isGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              Create {batchForm.count} Vouchers
             </Button>
           </SheetFooter>
         </SheetContent>

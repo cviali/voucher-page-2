@@ -43,6 +43,13 @@
       "when": 1767524631274,
       "tag": "0005_orange_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1767638265504,
+      "tag": "0006_workable_vector",
+      "breakpoints": true
     }
   ]
 }

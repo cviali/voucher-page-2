@@ -22,6 +22,7 @@ export const vouchers = sqliteTable('vouchers', {
   approvedBy: text('approved_by').references(() => users.username),
   usedAt: integer('used_at', { mode: 'timestamp' }),
   claimRequestedAt: integer('claim_requested_at', { mode: 'timestamp' }),
+  name: text('name'),
   imageUrl: text('image_url'),
   description: text('description'),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),

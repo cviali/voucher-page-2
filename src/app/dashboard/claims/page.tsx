@@ -38,7 +38,7 @@ import {
 import { formatDate } from "@/lib/utils";
 
 interface Voucher {
-  id: number;
+  id: string;
   code: string;
   status: string;
   createdAt: string;

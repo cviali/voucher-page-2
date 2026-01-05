@@ -28,7 +28,9 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
+  TabsContent,
 } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -40,15 +42,18 @@ import {
   X,
   Trash2,
   MessageCircle,
+  Users,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 interface Voucher {
   id: string;
   code: string;
+  name: string | null;
   status: string;
   createdAt: string;
   imageUrl: string | null;
+  description?: string | null;
   bindedToPhoneNumber?: string;
   customerName?: string;
 }
@@ -65,7 +70,12 @@ export default function BindPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"available" | "active">("available");
+  const [activeTab, setActiveTab] = useState<"available" | "active" | "bulk">("available");
+
+  // Bulk Bind state
+  const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
+  const [bulkVoucherName, setBulkVoucherName] = useState("");
+  const [isBulkBinding, setIsBulkBinding] = useState(false);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -205,6 +215,55 @@ export default function BindPage() {
     }
   };
 
+  const handleBulkBind = async () => {
+    if (!bulkVoucherName || !bulkPhoneNumbers) {
+      toast.error("Please provide both voucher name and phone numbers");
+      return;
+    }
+
+    const phoneNumbers = bulkPhoneNumbers
+      .split(/[\n,]+/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    if (phoneNumbers.length === 0) {
+      toast.error("No valid phone numbers found");
+      return;
+    }
+
+    setIsBulkBinding(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/vouchers/bulk-bind", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          voucherName: bulkVoucherName,
+          phoneNumbers,
+          expiryDate: formatToApiDate(expiryDate),
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json() as { count: number };
+        toast.success(`Successfully binded ${result.count} vouchers`);
+        setBulkPhoneNumbers("");
+        setBulkVoucherName("");
+        setActiveTab("active");
+      } else {
+        const data = (await res.json()) as { error?: string };
+        toast.error(data.error || "Failed to bulk bind vouchers");
+      }
+    } catch {
+      toast.error("Connection error");
+    } finally {
+      setIsBulkBinding(false);
+    }
+  };
+
   const handleDeleteVoucher = async () => {
     if (!selectedVoucher) return;
     if (!confirm("Are you sure you want to delete this voucher?")) return;
@@ -258,98 +317,172 @@ export default function BindPage() {
         defaultValue="available"
         value={activeTab}
         onValueChange={(v) => {
-          setActiveTab(v as "available" | "active");
+          setActiveTab(v as "available" | "active" | "bulk");
           setPage(1);
         }}
         className="w-full"
       >
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="available">Available</TabsTrigger>
           <TabsTrigger value="active">Binded</TabsTrigger>
+          <TabsTrigger value="bulk">Bulk Bind</TabsTrigger>
         </TabsList>
 
-        <div className="mt-6">
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <TabsContent value="bulk" className="mt-6">
+          <div className="max-w-2xl mx-auto space-y-6 bg-card p-6 rounded-xl border shadow-sm">
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Bulk Assign Vouchers
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Assign multiple vouchers of the same type to a list of customers.
+              </p>
             </div>
-          ) : (
+
             <div className="space-y-4">
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="pl-6">Code</TableHead>
-                      <TableHead>
-                        {activeTab === "available" ? "Created At" : "Customer"}
-                      </TableHead>
-                      <TableHead className="text-right pr-6">
-                        {activeTab === "available" ? "Status" : "Action"}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vouchers.length === 0 ? (
+              <div className="space-y-2">
+                <Label htmlFor="voucher-name">Voucher Name (Batch Name)</Label>
+                <Input
+                  id="voucher-name"
+                  placeholder="e.g. Welcome Discount 2024"
+                  value={bulkVoucherName}
+                  onChange={(e) => setBulkVoucherName(e.target.value)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Must match the name used when creating the batch.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone-numbers">Phone Numbers</Label>
+                <Textarea
+                  id="phone-numbers"
+                  placeholder="Enter phone numbers separated by commas or new lines..."
+                  className="min-h-[200px] font-mono text-sm"
+                  value={bulkPhoneNumbers}
+                  onChange={(e) => setBulkPhoneNumbers(e.target.value)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Example: +60123456789, +60198765432 or one per line.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-expiry">Expiry Date</Label>
+                <Input
+                  id="bulk-expiry"
+                  placeholder="DD/MM/YYYY"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                />
+              </div>
+
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={handleBulkBind}
+                disabled={isBulkBinding || !bulkVoucherName || !bulkPhoneNumbers}
+              >
+                {isBulkBinding ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Binding Vouchers...
+                  </>
+                ) : (
+                  "Assign Vouchers to Customers"
+                )}
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <div className="mt-6">
+          {activeTab !== "bulk" && (
+            isLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell
-                          colSpan={3}
-                          className="text-center py-8 text-muted-foreground"
-                        >
-                          No {activeTab} vouchers found.
-                        </TableCell>
+                        <TableHead className="pl-6">Voucher</TableHead>
+                        <TableHead>
+                          {activeTab === "available" ? "Created At" : "Customer"}
+                        </TableHead>
+                        <TableHead className="text-right pr-6">
+                          {activeTab === "available" ? "Status" : "Action"}
+                        </TableHead>
                       </TableRow>
-                    ) : (
-                      vouchers.map((voucher) => (
-                        <TableRow
-                          key={voucher.id}
-                          className={activeTab === "available" ? "cursor-pointer hover:bg-muted/50" : ""}
-                          onClick={() => activeTab === "available" && handleRowClick(voucher)}
-                        >
-                          <TableCell className="font-mono font-medium pl-6">
-                            <div className="flex items-center gap-2">
-                              {voucher.imageUrl && (
-                                <Image
-                                  src={voucher.imageUrl}
-                                  alt=""
-                                  width={32}
-                                  height={32}
-                                  className="w-8 h-8 rounded object-cover border"
-                                />
-                              )}
-                              {voucher.code}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {activeTab === "available" ? (
-                              formatDate(voucher.createdAt)
-                            ) : (
-                              <div className="flex flex-col">
-                                <span className="font-medium">{voucher.customerName}</span>
-                                <span className="text-xs text-muted-foreground">{voucher.bindedToPhoneNumber}</span>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right pr-6">
-                            {activeTab === "available" ? (
-                              <Badge variant="secondary">Available</Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="gap-2"
-                                onClick={() => handleWhatsAppShare(voucher)}
-                              >
-                                <MessageCircle className="h-4 w-4 text-green-600" />
-                                Share
-                              </Button>
-                            )}
+                    </TableHeader>
+                    <TableBody>
+                      {vouchers.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={3}
+                            className="text-center py-8 text-muted-foreground"
+                          >
+                            No {activeTab} vouchers found.
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                      ) : (
+                        vouchers.map((voucher) => (
+                          <TableRow
+                            key={voucher.id}
+                            className={activeTab === "available" ? "cursor-pointer hover:bg-muted/50" : ""}
+                            onClick={() => activeTab === "available" && handleRowClick(voucher)}
+                          >
+                            <TableCell className="font-medium pl-6">
+                              <div className="flex items-center gap-3">
+                                {voucher.imageUrl && (
+                                  <Image
+                                    src={voucher.imageUrl}
+                                    alt=""
+                                    width={40}
+                                    height={40}
+                                    className="w-10 h-10 rounded-md object-cover border shadow-sm"
+                                  />
+                                )}
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-sm text-foreground">{voucher.name || 'Unnamed Voucher'}</span>
+                                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{voucher.code}</span>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {activeTab === "available" ? (
+                                formatDate(voucher.createdAt)
+                              ) : (
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{voucher.customerName}</span>
+                                  <span className="text-xs text-muted-foreground">{voucher.bindedToPhoneNumber}</span>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right pr-6">
+                              {activeTab === "available" ? (
+                                <Badge variant="secondary">Available</Badge>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-2"
+                                  onClick={() => handleWhatsAppShare(voucher)}
+                                >
+                                  <MessageCircle className="h-4 w-4 text-green-600" />
+                                  Share
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
 
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
@@ -380,7 +513,7 @@ export default function BindPage() {
                 </div>
               </div>
             </div>
-          )}
+          ))}
         </div>
       </Tabs>
 
