@@ -2,26 +2,29 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { formatDate } from "@/lib/utils"
 import Image from "next/image"
+import Link from "next/link"
+import { motion } from "framer-motion"
+import { Ticket, Clock, CheckCircle2 } from "lucide-react"
 
 interface Voucher {
-  id: number;
+  id: string;
   code: string;
   status: string;
   expiryDate: string;
   imageUrl: string | null;
   description: string | null;
+  claimRequestedAt: string | null;
 }
 
 export default function CustomerVouchersPage() {
   const [vouchers, setVouchers] = useState<Voucher[]>([])
   const [isFetching, setIsFetching] = useState(true)
-  const { user, isLoading, logout } = useAuth()
+  const { user, isLoading } = useAuth()
 
   const fetchVouchers = useCallback(async () => {
     try {
@@ -50,54 +53,82 @@ export default function CustomerVouchersPage() {
     }
   }, [user, fetchVouchers])
 
-  if (isLoading || isFetching) return <div className="p-8">Loading...</div>
-  if (!user || user.role !== 'customer') return null
-
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">My Vouchers</h1>
-          <p className="text-muted-foreground">Logged in as {user.name} ({user.phoneNumber})</p>
-        </div>
-        <Button variant="outline" onClick={logout}>Log Out</Button>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {vouchers.length === 0 ? (
-          <p className="text-muted-foreground">You don&apos;t have any vouchers yet.</p>
+    <>
+      <main className="w-full max-w-[690px] p-6 space-y-6">
+        {isLoading || isFetching ? (
+          <div className="py-20 text-center text-muted-foreground">Loading...</div>
+        ) : vouchers.length === 0 ? (
+          <div className="text-center py-20 space-y-4">
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto">
+              <Ticket className="w-10 h-10 text-muted-foreground" />
+            </div>
+            <p className="text-muted-foreground font-medium">You don&apos;t have any vouchers yet.</p>
+          </div>
         ) : (
-          vouchers.map((voucher) => (
-            <Card key={voucher.id} className="overflow-hidden">
-              {voucher.imageUrl && (
-                <div className="relative h-48 w-full">
-                  <Image 
-                    src={voucher.imageUrl} 
-                    alt="Voucher" 
-                    fill 
-                    className="object-cover"
-                  />
-                </div>
-              )}
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  <span className="font-mono">{voucher.code}</span>
-                  <Badge variant={voucher.status === 'active' ? 'default' : 'secondary'}>
-                    {voucher.status}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {voucher.description && (
-                  <p className="text-sm font-medium">{voucher.description}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Expires: {formatDate(voucher.expiryDate)}
-                </p>
-              </CardContent>
-            </Card>
-          ))
+          <div className="grid gap-6">
+            {vouchers.map((voucher, index) => {
+              const isExpired = new Date(voucher.expiryDate) < new Date()
+              const isUsed = voucher.status === 'claimed'
+              const isInactive = isExpired || isUsed
+              const isRequested = !!voucher.claimRequestedAt
+
+              return (
+                <motion.div
+                  key={voucher.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Link href={`/customer/vouchers/${voucher.id}`}>
+                    <Card className={`overflow-hidden border-none shadow-md rounded-xl transition-all active:scale-[0.98] p-0 gap-0 ${isInactive ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                      <div className="relative aspect-video w-full">
+                        {voucher.imageUrl ? (
+                          <Image 
+                            src={voucher.imageUrl} 
+                            alt="Voucher" 
+                            fill 
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+                            <Ticket className="w-12 h-12 text-white/20" />
+                          </div>
+                        )}
+                        <div className="absolute top-4 right-4">
+                          <Badge className={`px-3 py-1 rounded-full border-none ${
+                            isUsed ? 'bg-zinc-500' : 
+                            isExpired ? 'bg-red-500' : 
+                            isRequested ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`}>
+                            {isUsed ? 'Used' : isExpired ? 'Expired' : isRequested ? 'Pending' : 'Active'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <CardContent className="px-6 py-4 flex justify-between items-center bg-card">
+                        <div className="space-y-1">
+                          <h3 className="font-bold text-lg leading-tight text-foreground">
+                            {voucher.code}
+                          </h3>
+                          <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Valid until {formatDate(voucher.expiryDate)}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                            {isUsed ? <CheckCircle2 className="w-5 h-5 text-muted-foreground" /> : <Ticket className="w-5 h-5 text-foreground" />}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </motion.div>
+              )
+            })}
+          </div>
         )}
-      </div>
-    </div>
+      </main>
+    </>
   )
 }

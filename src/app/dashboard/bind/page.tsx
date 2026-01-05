@@ -24,6 +24,11 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -34,15 +39,18 @@ import {
   ChevronRight,
   X,
   Trash2,
+  MessageCircle,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 interface Voucher {
-  id: number;
+  id: string;
   code: string;
   status: string;
   createdAt: string;
   imageUrl: string | null;
+  bindedToPhoneNumber?: string;
+  customerName?: string;
 }
 
 interface UserResult {
@@ -57,6 +65,7 @@ export default function BindPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"available" | "active">("available");
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -74,12 +83,12 @@ export default function BindPage() {
   const [isBinding, setIsBinding] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchAvailableVouchers = async (currentPage: number) => {
+  const fetchVouchers = async (currentPage: number, status: string) => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        `/api/vouchers?status=available&page=${currentPage}&limit=${limit}`,
+        `/api/vouchers?status=${status}&page=${currentPage}&limit=${limit}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -102,9 +111,9 @@ export default function BindPage() {
 
   useEffect(() => {
     if (user && (user.role === "cashier" || user.role === "admin")) {
-      fetchAvailableVouchers(page);
+      fetchVouchers(page, activeTab);
     }
-  }, [user, page]);
+  }, [user, page, activeTab]);
 
   useEffect(() => {
     const searchUsers = async () => {
@@ -184,7 +193,7 @@ export default function BindPage() {
       if (res.ok) {
         toast.success("Voucher successfully binded");
         setIsSheetOpen(false);
-        fetchAvailableVouchers(page);
+        fetchVouchers(page, activeTab);
       } else {
         const data = (await res.json()) as { error?: string };
         toast.error(data.error || "Failed to bind voucher");
@@ -213,7 +222,7 @@ export default function BindPage() {
       if (res.ok) {
         toast.success("Voucher deleted successfully");
         setIsSheetOpen(false);
-        fetchAvailableVouchers(page);
+        fetchVouchers(page, activeTab);
       } else {
         const data = (await res.json()) as { error?: string };
         toast.error(data.error || "Failed to delete voucher");
@@ -225,104 +234,155 @@ export default function BindPage() {
     }
   };
 
+  const handleWhatsAppShare = (voucher: Voucher) => {
+    if (!voucher.bindedToPhoneNumber) return;
+    
+    const phoneNumber = voucher.bindedToPhoneNumber.replace(/\+/g, "");
+    const baseUrl = window.location.origin;
+    const message = `Hi ${voucher.customerName || "Customer"}, here is your voucher link: ${baseUrl}/customer/vouchers/${voucher.id}`;
+    const encodedMessage = encodeURIComponent(message);
+    
+    window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
+  };
+
   return (
     <div className="flex flex-1 flex-col p-8 gap-8">
       <div className="flex flex-col">
         <h1 className="text-2xl font-bold">Bind Vouchers</h1>
         <p className="text-muted-foreground">
-          Select an available voucher to assign it to a registered customer.
+          Manage and assign vouchers to registered customers.
         </p>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-6">Code</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead className="text-right pr-6">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vouchers.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={3}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      No available vouchers found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  vouchers.map((voucher) => (
-                    <TableRow
-                      key={voucher.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleRowClick(voucher)}
-                    >
-                      <TableCell className="font-mono font-medium pl-6">
-                        <div className="flex items-center gap-2">
-                          {voucher.imageUrl && (
-                            <Image
-                              src={voucher.imageUrl}
-                              alt=""
-                              width={32}
-                              height={32}
-                              className="w-8 h-8 rounded object-cover border"
-                            />
-                          )}
-                          {voucher.code}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {formatDate(voucher.createdAt)}
-                      </TableCell>
-                      <TableCell className="text-right pr-6">
-                        <Badge variant="secondary">Available</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+      <Tabs
+        defaultValue="available"
+        value={activeTab}
+        onValueChange={(v) => {
+          setActiveTab(v as "available" | "active");
+          setPage(1);
+        }}
+        className="w-full"
+      >
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="available">Available</TabsTrigger>
+          <TabsTrigger value="active">Binded</TabsTrigger>
+        </TabsList>
 
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing {vouchers.length} of {total} available vouchers
-            </p>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1 || isLoading}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-              <div className="text-sm font-medium">
-                Page {page} of {totalPages}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || isLoading}
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
+        <div className="mt-6">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Code</TableHead>
+                      <TableHead>
+                        {activeTab === "available" ? "Created At" : "Customer"}
+                      </TableHead>
+                      <TableHead className="text-right pr-6">
+                        {activeTab === "available" ? "Status" : "Action"}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vouchers.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={3}
+                          className="text-center py-8 text-muted-foreground"
+                        >
+                          No {activeTab} vouchers found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      vouchers.map((voucher) => (
+                        <TableRow
+                          key={voucher.id}
+                          className={activeTab === "available" ? "cursor-pointer hover:bg-muted/50" : ""}
+                          onClick={() => activeTab === "available" && handleRowClick(voucher)}
+                        >
+                          <TableCell className="font-mono font-medium pl-6">
+                            <div className="flex items-center gap-2">
+                              {voucher.imageUrl && (
+                                <Image
+                                  src={voucher.imageUrl}
+                                  alt=""
+                                  width={32}
+                                  height={32}
+                                  className="w-8 h-8 rounded object-cover border"
+                                />
+                              )}
+                              {voucher.code}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {activeTab === "available" ? (
+                              formatDate(voucher.createdAt)
+                            ) : (
+                              <div className="flex flex-col">
+                                <span className="font-medium">{voucher.customerName}</span>
+                                <span className="text-xs text-muted-foreground">{voucher.bindedToPhoneNumber}</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            {activeTab === "available" ? (
+                              <Badge variant="secondary">Available</Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-2"
+                                onClick={() => handleWhatsAppShare(voucher)}
+                              >
+                                <MessageCircle className="h-4 w-4 text-green-600" />
+                                Share
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {vouchers.length} of {total} {activeTab} vouchers
+                </p>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1 || isLoading}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="text-sm font-medium">
+                    Page {page} of {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages || isLoading}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </Tabs>
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
         <SheetContent className="sm:max-w-md overflow-y-auto">

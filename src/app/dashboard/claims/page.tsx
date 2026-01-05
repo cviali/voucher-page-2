@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -32,6 +33,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Trash2,
+  Ticket,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
@@ -49,7 +51,9 @@ interface Voucher {
 export default function ClaimsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [requestedVouchers, setRequestedVouchers] = useState<Voucher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRequestedLoading, setIsRequestedLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
@@ -60,6 +64,27 @@ export default function ClaimsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 10;
+
+  const fetchRequestedVouchers = async () => {
+    setIsRequestedLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `/api/vouchers?requested=true&limit=100`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (res.ok) {
+        const result = (await res.json()) as { data: Voucher[] };
+        setRequestedVouchers(result.data);
+      }
+    } catch {
+      console.error("Failed to fetch requested vouchers");
+    } finally {
+      setIsRequestedLoading(false);
+    }
+  };
 
   const fetchActiveVouchers = async (currentPage: number) => {
     setIsLoading(true);
@@ -89,6 +114,7 @@ export default function ClaimsPage() {
 
   useEffect(() => {
     if (user && (user.role === "cashier" || user.role === "admin")) {
+      fetchRequestedVouchers();
       fetchActiveVouchers(page);
     }
   }, [user, page]);
@@ -119,6 +145,7 @@ export default function ClaimsPage() {
       if (res.ok) {
         toast.success("Voucher successfully claimed");
         setIsSheetOpen(false);
+        fetchRequestedVouchers();
         fetchActiveVouchers(page);
       } else {
         const data = (await res.json()) as { error?: string };
@@ -169,13 +196,70 @@ export default function ClaimsPage() {
         </p>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      {/* Requested Vouchers Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            Requested to Redeem
+            {requestedVouchers.length > 0 && (
+              <Badge variant="destructive" className="rounded-full px-2 py-0.5 text-[10px]">
+                {requestedVouchers.length}
+              </Badge>
+            )}
+          </h2>
+          <Button variant="ghost" size="sm" onClick={fetchRequestedVouchers} disabled={isRequestedLoading}>
+            {isRequestedLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh"}
+          </Button>
         </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="rounded-md border">
+        
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {requestedVouchers.length === 0 ? (
+            <div className="col-span-full py-8 text-center border rounded-xl bg-muted/20 text-muted-foreground text-sm">
+              No pending redemption requests.
+            </div>
+          ) : (
+            requestedVouchers.map((voucher) => (
+              <Card 
+                key={voucher.id} 
+                className="p-4 cursor-pointer hover:border-primary/50 transition-colors border-2 border-amber-100 bg-amber-50/30"
+                onClick={() => handleRowClick(voucher)}
+              >
+                <div className="flex items-start gap-4">
+                  {voucher.imageUrl ? (
+                    <Image
+                      src={voucher.imageUrl}
+                      alt=""
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 rounded-lg object-cover border bg-white"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-zinc-200 flex items-center justify-center">
+                      <Ticket className="w-6 h-6 text-zinc-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono font-bold text-sm truncate">{voucher.code}</p>
+                    <p className="font-medium text-sm truncate">{voucher.customerName || "Unknown"}</p>
+                    <p className="text-xs text-muted-foreground">{voucher.bindedToPhoneNumber}</p>
+                  </div>
+                  <Badge className="bg-amber-500 hover:bg-amber-600">Requested</Badge>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">All Active Vouchers</h2>
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -274,6 +358,7 @@ export default function ClaimsPage() {
           </div>
         </div>
       )}
+      </div>
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
         <SheetContent className="sm:max-w-md overflow-y-auto">

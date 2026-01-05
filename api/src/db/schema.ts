@@ -12,7 +12,7 @@ export const users = sqliteTable('users', {
 });
 
 export const vouchers = sqliteTable('vouchers', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   code: text('code').notNull().unique(), // 16-digit uppercase string
   status: text('status', { enum: ['available', 'active', 'claimed'] }).notNull().default('available'),
   bindedToPhoneNumber: text('binded_to_phone_number').references(() => users.phoneNumber),
@@ -21,6 +21,7 @@ export const vouchers = sqliteTable('vouchers', {
   approvedAt: integer('approved_at', { mode: 'timestamp' }),
   approvedBy: text('approved_by').references(() => users.username),
   usedAt: integer('used_at', { mode: 'timestamp' }),
+  claimRequestedAt: integer('claim_requested_at', { mode: 'timestamp' }),
   imageUrl: text('image_url'),
   description: text('description'),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),

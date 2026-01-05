@@ -1,19 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useAuth } from "@/hooks/use-auth"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
 
-export default function LoginPage() {
+function LoginForm() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const { login } = useAuth()
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get("redirect")
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,7 +33,7 @@ export default function LoginPage() {
       const data = await res.json() as { token: string; user: { username: string; phoneNumber?: string; role: 'admin' | 'cashier' | 'customer'; name: string }; error?: string }
       
       if (res.ok) {
-        login(data.token, data.user)
+        login(data.token, data.user, redirect || undefined)
       } else {
         setError(data.error || "Invalid username or password")
       }
@@ -42,10 +45,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-muted/50">
-      <Card className="w-[350px]">
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <Card className="w-[350px] border-none shadow-none sm:border sm:shadow-sm">
         <CardHeader>
-          <CardTitle>Staff Login</CardTitle>
+          <CardTitle className="text-2xl font-bold">Staff Login</CardTitle>
           <CardDescription>Enter your credentials to access the dashboard.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -82,5 +85,17 @@ export default function LoginPage() {
         </form>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, desc, count, like, or, isNull, inArray } from 'drizzle-orm'
+import { eq, and, desc, count, like, or, isNull, inArray, isNotNull } from 'drizzle-orm'
 import { getDb } from './db/db'
 import { users, vouchers } from './db/schema'
 import { SignJWT, jwtVerify } from 'jose'
@@ -301,7 +301,7 @@ app.patch('/vouchers/:id', authMiddleware, async (c) => {
   const user = c.get('user')
   if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
 
-  const id = parseInt(c.req.param('id'))
+  const id = c.req.param('id')
   const body = await c.req.json()
   const db = getDb(c.env.DB)
 
@@ -325,10 +325,21 @@ app.get('/vouchers', authMiddleware, async (c) => {
   const db = getDb(c.env.DB)
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '10')
-  const status = c.req.query('status') as 'available' | 'active' | 'claimed' | undefined
+  const status = c.req.query('status')
+  const requested = c.req.query('requested') === 'true'
   const offset = (page - 1) * limit
 
-  let query = db.select({
+  const conditions = [isNull(vouchers.deletedAt)]
+  if (status) {
+    const statusList = status.split(',')
+    conditions.push(inArray(vouchers.status, statusList as any))
+  } else if (requested) {
+    conditions.push(eq(vouchers.status, 'active'))
+    conditions.push(isNotNull(vouchers.claimRequestedAt))
+    conditions.push(isNull(vouchers.usedAt))
+  }
+
+  const query = db.select({
     id: vouchers.id,
     code: vouchers.code,
     status: vouchers.status,
@@ -340,22 +351,14 @@ app.get('/vouchers', authMiddleware, async (c) => {
     approvedBy: vouchers.approvedBy,
     approvedAt: vouchers.approvedAt,
     usedAt: vouchers.usedAt,
+    claimRequestedAt: vouchers.claimRequestedAt,
     customerName: users.name,
   })
   .from(vouchers)
   .leftJoin(users, eq(vouchers.bindedToPhoneNumber, users.phoneNumber))
+  .where(and(...conditions))
 
-  let countQuery = db.select({ value: count() }).from(vouchers).where(isNull(vouchers.deletedAt))
-
-  if (status) {
-    // @ts-ignore
-    query = query.where(and(isNull(vouchers.deletedAt), eq(vouchers.status, status)))
-    // @ts-ignore
-    countQuery = countQuery.where(and(isNull(vouchers.deletedAt), eq(vouchers.status, status)))
-  } else {
-    // @ts-ignore
-    query = query.where(isNull(vouchers.deletedAt))
-  }
+  const countQuery = db.select({ value: count() }).from(vouchers).where(and(...conditions))
 
   const data = await query
     .limit(limit)
@@ -414,12 +417,39 @@ app.post('/vouchers/claim', authMiddleware, async (c) => {
       status: 'claimed',
       approvedAt: new Date(),
       approvedBy: user.username,
-      usedAt: new Date()
+      usedAt: new Date(),
+      claimRequestedAt: null
     })
     .where(eq(vouchers.code, code))
     .returning()
     
   return c.json(updatedVoucher)
+})
+
+app.post('/customer/vouchers/:id/request-claim', authMiddleware, async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const db = getDb(c.env.DB)
+
+  const voucher = await db.select().from(vouchers).where(eq(vouchers.id, id)).get()
+  if (!voucher) return c.json({ error: 'Voucher not found' }, 404)
+
+  // Check ownership
+  const userPhone = user.phoneNumber || user.username
+  if (user.role === 'customer' && voucher.bindedToPhoneNumber !== userPhone) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  if (voucher.status !== 'active') {
+    return c.json({ error: 'Only active vouchers can be claimed' }, 400)
+  }
+
+  const updatedVoucher = await db.update(vouchers)
+    .set({ claimRequestedAt: new Date() })
+    .where(eq(vouchers.id, id))
+    .returning()
+
+  return c.json(updatedVoucher[0])
 })
 
 app.get('/customer/vouchers', authMiddleware, async (c) => {
@@ -553,7 +583,7 @@ app.delete('/vouchers/:id', authMiddleware, async (c) => {
   const user = c.get('user')
   if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
 
-  const id = parseInt(c.req.param('id'))
+  const id = c.req.param('id')
   const db = getDb(c.env.DB)
 
   await db.update(vouchers)

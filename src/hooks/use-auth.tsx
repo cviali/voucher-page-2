@@ -12,7 +12,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null
-  login: (token: string, user: User) => void
+  login: (token: string, user: User, redirectTo?: string) => void
   logout: () => void
   isLoading: boolean
 }
@@ -36,33 +36,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // If user is logged in and tries to access login page, redirect to dashboard/vouchers
       if (pathname.includes("/login")) {
         if (userObj.role === 'customer') {
-          router.push("/customer/vouchers")
+          router.push("/customer")
         } else {
           router.push("/dashboard")
         }
       }
     } else {
       // Only redirect if we're trying to access a protected route
-      const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/customer/vouchers")
+      const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/customer/vouchers") || pathname === "/customer"
       const isLoginPage = pathname.includes("/login")
       
       if (isProtectedRoute && !isLoginPage) {
         if (pathname.startsWith("/customer")) {
-          router.push("/customer/login")
+          router.push(`/customer/login?redirect=${encodeURIComponent(pathname)}`)
         } else {
-          router.push("/login")
+          router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
         }
       }
     }
     setIsLoading(false)
   }, [pathname, router])
 
-  const login = (token: string, user: User) => {
+  const login = (token: string, user: User, redirectTo?: string) => {
     localStorage.setItem("token", token)
     localStorage.setItem("user", JSON.stringify(user))
     setUser(user)
+    
+    if (redirectTo) {
+      router.push(redirectTo)
+      return
+    }
+
     if (user.role === 'customer') {
-      router.push("/customer/vouchers")
+      router.push("/customer")
     } else {
       router.push("/dashboard")
     }

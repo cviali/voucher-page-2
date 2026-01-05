@@ -54,3 +54,4 @@ next-env.d.ts
 /api/.wrangler
 /api/.dev.vars
 /api/dist
+.vscode
