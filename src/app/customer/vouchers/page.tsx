@@ -5,15 +5,16 @@ import { useAuth } from "@/hooks/use-auth"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { formatDate } from "@/lib/utils"
+import { formatDate, getOptimizedImageUrl } from "@/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Ticket, Clock, CheckCircle2 } from "lucide-react"
+import { Ticket, Clock, Loader2 } from "lucide-react"
 
 interface Voucher {
   id: string;
   code: string;
+  name: string | null;
   status: string;
   expiryDate: string;
   imageUrl: string | null;
@@ -24,19 +25,39 @@ interface Voucher {
 export default function CustomerVouchersPage() {
   const [vouchers, setVouchers] = useState<Voucher[]>([])
   const [isFetching, setIsFetching] = useState(true)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { user, isLoading } = useAuth()
 
-  const fetchVouchers = useCallback(async () => {
+  const fetchVouchers = useCallback(async (pageNum: number, isInitial: boolean = false) => {
+    if (isInitial) setIsFetching(true)
+    else setIsLoadingMore(true)
+
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`/api/customer/vouchers?phoneNumber=${user?.phoneNumber || user?.username}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      const res = await fetch(
+        `/api/customer/vouchers?phoneNumber=${user?.phoneNumber || user?.username}&page=${pageNum}&limit=4`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         }
-      })
+      )
       if (res.ok) {
-        const data = await res.json() as Voucher[]
-        setVouchers(data)
+        const result = (await res.json()) as {
+          data: Voucher[]
+          totalPages: number
+          page: number
+        }
+        
+        if (isInitial) {
+          setVouchers(result.data || [])
+        } else {
+          setVouchers(prev => [...(prev || []), ...(result.data || [])])
+        }
+        
+        setHasMore(result.page < result.totalPages)
       } else {
         toast.error("Failed to fetch vouchers")
       }
@@ -44,20 +65,32 @@ export default function CustomerVouchersPage() {
       toast.error("Connection error")
     } finally {
       setIsFetching(false)
+      setIsLoadingMore(false)
     }
   }, [user])
 
   useEffect(() => {
     if (user && user.role === 'customer') {
-      fetchVouchers()
+      fetchVouchers(1, true)
     }
   }, [user, fetchVouchers])
+
+  const loadMore = () => {
+    if (hasMore && !isLoadingMore) {
+      const nextPage = page + 1
+      setPage(nextPage)
+      fetchVouchers(nextPage)
+    }
+  }
 
   return (
     <>
       <main className="w-full max-w-[690px] p-6 space-y-6">
         {isLoading || isFetching ? (
-          <div className="py-20 text-center text-muted-foreground">Loading...</div>
+          <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p>Gathering your rewards...</p>
+          </div>
         ) : vouchers.length === 0 ? (
           <div className="text-center py-20 space-y-4">
             <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto">
@@ -66,7 +99,7 @@ export default function CustomerVouchersPage() {
             <p className="text-muted-foreground font-medium">You don&apos;t have any vouchers yet.</p>
           </div>
         ) : (
-          <div className="grid gap-6">
+          <div className="grid gap-8">
             {vouchers.map((voucher, index) => {
               const isExpired = new Date(voucher.expiryDate) < new Date()
               const isUsed = voucher.status === 'claimed'
@@ -78,46 +111,60 @@ export default function CustomerVouchersPage() {
                   key={voucher.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
+                  transition={{ delay: (index % 4) * 0.1 }}
                 >
                   <Link href={`/customer/vouchers/${voucher.id}`}>
-                    <Card className={`overflow-hidden border-none shadow-md rounded-xl transition-all active:scale-[0.98] p-0 gap-0 ${isInactive ? 'opacity-60 grayscale-[0.5]' : ''}`}>
-                      <div className="relative aspect-video w-full">
+                    <Card className={`relative overflow-hidden border shadow-lg transition-all active:scale-[0.98] p-0 gap-0 group ${isInactive ? 'opacity-75 grayscale-[0.3]' : ''}`}>
+                      <div className="relative aspect-video w-full overflow-hidden">
                         {voucher.imageUrl ? (
                           <Image 
-                            src={voucher.imageUrl} 
-                            alt="Voucher" 
+                            src={getOptimizedImageUrl(voucher.imageUrl, 600)} 
+                            alt={voucher.name || "Voucher"} 
                             fill 
-                            className="object-cover"
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : (
                           <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
-                            <Ticket className="w-12 h-12 text-white/20" />
+                            <Ticket className="w-16 h-16 text-white/10" />
                           </div>
                         )}
-                        <div className="absolute top-4 right-4">
-                          <Badge className={`px-3 py-1 rounded-full border-none ${
-                            isUsed ? 'bg-zinc-500' : 
-                            isExpired ? 'bg-red-500' : 
-                            isRequested ? 'bg-amber-500' : 'bg-emerald-500'
+                        
+                        {/* Status Overlay */}
+                        <div className="absolute top-4 right-4 z-10">
+                          <Badge className={`px-4 py-1.5 rounded-full border-2 border-white/20 shadow-lg backdrop-blur-md ${
+                            isUsed ? 'bg-zinc-800 text-white' : 
+                            isExpired ? 'bg-red-600 text-white' : 
+                            isRequested ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
                           }`}>
-                            {isUsed ? 'Used' : isExpired ? 'Expired' : isRequested ? 'Pending' : 'Active'}
+                            {isUsed ? 'REDEEMED' : isExpired ? 'EXPIRED' : isRequested ? 'PENDING' : 'ACTIVE'}
                           </Badge>
                         </div>
+
+                        {/* Bottom Gradient for Name */}
+                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent" />
+                        <div className="absolute bottom-4 left-6 right-6">
+                           <h2 className="text-white font-bold text-xl drop-shadow-md truncate">
+                            {voucher.name || "Special Offer"}
+                          </h2>
+                        </div>
                       </div>
-                      <CardContent className="px-6 py-4 flex justify-between items-center bg-card">
-                        <div className="space-y-1">
-                          <h3 className="font-bold text-lg leading-tight text-foreground">
+
+                      <CardContent className="px-6 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-card gap-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">Voucher Code</span>
+                            <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+                            <span className="text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Valid for Dine-in</span>
+                          </div>
+                          <h3 className="font-mono text-2xl font-bold tracking-tighter text-foreground">
                             {voucher.code}
                           </h3>
-                          <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>Valid until {formatDate(voucher.expiryDate)}</span>
-                          </div>
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                            {isUsed ? <CheckCircle2 className="w-5 h-5 text-muted-foreground" /> : <Ticket className="w-5 h-5 text-foreground" />}
+                        
+                        <div className="flex flex-col items-start sm:items-end gap-1">
+                          <div className="flex items-center gap-1.5 text-muted-foreground text-sm font-medium">
+                            <Clock className="w-4 h-4" />
+                            <span>Expires {formatDate(voucher.expiryDate)}</span>
                           </div>
                         </div>
                       </CardContent>
@@ -126,6 +173,19 @@ export default function CustomerVouchersPage() {
                 </motion.div>
               )
             })}
+
+            {hasMore && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isLoadingMore ? 'LOADING...' : 'SHOW MORE VOUCHERS'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>

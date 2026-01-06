@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, desc, count, like, or, isNull, inArray, isNotNull } from 'drizzle-orm'
+import { eq, and, desc, count, like, or, isNull, inArray, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from './db/db'
 import { users, vouchers } from './db/schema'
 import { SignJWT, jwtVerify } from 'jose'
@@ -40,11 +40,11 @@ const authMiddleware = async (c: any, next: any) => {
   }
 }
 
-// Helper to generate 16-digit uppercase string
+// Helper to generate 6-digit alphanumeric code (numbers and uppercase letters)
 const generateVoucherCode = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let result = ''
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return result
@@ -357,14 +357,16 @@ app.post('/vouchers/upload', authMiddleware, async (c) => {
 
 app.get('/vouchers/image/:name', async (c) => {
   const name = c.req.param('name')
+
   const object = await c.env.BUCKET.get(name)
   if (!object) return c.json({ error: 'Not found' }, 404)
 
   const headers = new Headers()
   object.writeHttpMetadata(headers)
   headers.set('etag', object.httpEtag)
+  // Cache images at the edge and browser for 1 year
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable')
   
-  // Ensure Content-Type is set for social media crawlers
   if (!headers.has('Content-Type')) {
     if (name.endsWith('.png')) headers.set('Content-Type', 'image/png')
     else if (name.endsWith('.jpg') || name.endsWith('.jpeg')) headers.set('Content-Type', 'image/jpeg')
@@ -455,7 +457,15 @@ app.get('/vouchers', authMiddleware, async (c) => {
   const data = await query
     .limit(limit)
     .offset(offset)
-    .orderBy(desc(vouchers.createdAt))
+    .orderBy(
+      sql`CASE 
+        WHEN ${vouchers.status} = 'active' THEN 1 
+        WHEN ${vouchers.status} = 'available' THEN 2 
+        WHEN ${vouchers.status} = 'claimed' THEN 3 
+        ELSE 4 
+      END`,
+      desc(vouchers.createdAt)
+    )
 
   const totalResult = await countQuery
   const total = totalResult[0].value
@@ -600,6 +610,9 @@ app.get('/customer/vouchers', authMiddleware, async (c) => {
   const user = c.get('user')
   const db = getDb(c.env.DB)
   const phoneNumber = normalizePhone(c.req.query('phoneNumber'))
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = parseInt(c.req.query('limit') || '4')
+  const offset = (page - 1) * limit
 
   // Customers can only see their own vouchers
   if (user.role === 'customer' && user.username !== phoneNumber && user.phoneNumber !== phoneNumber) {
@@ -613,8 +626,45 @@ app.get('/customer/vouchers', authMiddleware, async (c) => {
     return c.json({ error: 'Phone number is required' }, 400)
   }
 
-  const customerVouchers = await db.select().from(vouchers).where(and(eq(vouchers.bindedToPhoneNumber, targetPhone), isNull(vouchers.deletedAt)))
-  return c.json(customerVouchers)
+  const conditions = and(eq(vouchers.bindedToPhoneNumber, targetPhone), isNull(vouchers.deletedAt))
+
+  const [customerVouchers, totalCount] = await Promise.all([
+    db.select()
+      .from(vouchers)
+      .where(conditions)
+      .orderBy(vouchers.status, vouchers.expiryDate)
+      .limit(limit)
+      .offset(offset),
+    db.select({ value: count() }).from(vouchers).where(conditions)
+  ])
+
+  return c.json({
+    data: customerVouchers,
+    total: totalCount[0].value,
+    page,
+    limit,
+    totalPages: Math.ceil(totalCount[0].value / limit)
+  })
+})
+
+app.get('/customer/vouchers/:id', authMiddleware, async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+  const db = getDb(c.env.DB)
+
+  const voucher = await db.select().from(vouchers).where(eq(vouchers.id, id)).get()
+  
+  if (!voucher || voucher.deletedAt) {
+    return c.json({ error: 'Voucher not found' }, 404)
+  }
+
+  // Check ownership: customers can only see their own vouchers
+  const userPhone = user.phoneNumber || user.username
+  if (user.role === 'customer' && voucher.bindedToPhoneNumber !== userPhone) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  return c.json(voucher)
 })
 
 app.patch('/users/:id', authMiddleware, async (c) => {

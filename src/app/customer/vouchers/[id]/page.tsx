@@ -35,6 +35,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           const separator = absoluteImageUrl.startsWith('/') ? '' : '/'
           absoluteImageUrl = `${siteUrl}${separator}${absoluteImageUrl}`
         }
+        // Optimize OG image for social media (1200px is ideal)
+        const paramSeparator = absoluteImageUrl.includes('?') ? '&' : '?'
+        absoluteImageUrl = `${absoluteImageUrl}${paramSeparator}w=1200&q=85`
       } else {
         absoluteImageUrl = defaultImage
       }

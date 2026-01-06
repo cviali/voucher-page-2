@@ -26,7 +26,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center">
-      <nav className="w-full bg-card border-b flex justify-center sticky top-0 z-10">
+      <nav className="w-full bg-card border-b flex justify-center sticky top-0 z-30">
         <div className="w-full px-6 py-4 flex items-center relative">
           {backHref && (
             <Link href={backHref} className="absolute left-6">

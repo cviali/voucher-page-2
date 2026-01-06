@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { formatDate } from "@/lib/utils"
+import { formatDate, getOptimizedImageUrl } from "@/lib/utils"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Clock, Info, CheckCircle2, Ticket } from "lucide-react"
@@ -32,15 +32,16 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
     const fetchVoucher = async () => {
       try {
         const token = localStorage.getItem("token")
-        const res = await fetch(`/api/customer/vouchers?phoneNumber=${user?.phoneNumber || user?.username}`, {
+        const res = await fetch(`/api/customer/vouchers/${id}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         })
         if (res.ok) {
-          const data = await res.json() as Voucher[]
-          const found = data.find(v => v.id === id)
-          setVoucher(found || null)
+          const data = await res.json() as Voucher
+          setVoucher(data)
+        } else {
+          setVoucher(null)
         }
       } catch {
         toast.error("Connection error")
@@ -101,7 +102,7 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
             <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
               {voucher.imageUrl ? (
                 <Image 
-                  src={voucher.imageUrl} 
+                  src={getOptimizedImageUrl(voucher.imageUrl, 1000)} 
                   alt="Voucher" 
                   fill 
                   className="object-cover"

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
+import { getOptimizedImageUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ import {
   Upload,
   Image as ImageIcon
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, resizeImage } from "@/lib/utils";
 
 interface Voucher {
   id: string;
@@ -71,6 +72,7 @@ export default function VouchersPage() {
     imageUrl: "",
     description: ""
   });
+  const [batchImageFile, setBatchImageFile] = useState<File | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -124,23 +126,57 @@ export default function VouchersPage() {
     setIsGenerating(true);
     try {
       const token = localStorage.getItem("token");
+      let currentImageUrl = batchForm.imageUrl;
+
+      // Handle file upload if present
+      if (batchImageFile) {
+        const resizedBlob = await resizeImage(batchImageFile, 1200, 1200);
+        const resizedFile = new File([resizedBlob], "batch-image.jpg", { type: 'image/jpeg' });
+        
+        const formData = new FormData();
+        formData.append("file", resizedFile);
+
+        const uploadRes = await fetch("/api/vouchers/upload", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (uploadRes.ok) {
+          const { url } = (await uploadRes.json()) as { url: string };
+          currentImageUrl = url;
+        } else {
+          toast.error("Failed to upload image. Rolling back...");
+          setIsGenerating(false);
+          return;
+        }
+      }
+
       const res = await fetch("/api/vouchers/batch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(batchForm),
+        body: JSON.stringify({
+          ...batchForm,
+          imageUrl: currentImageUrl
+        }),
       });
       if (res.ok) {
         toast.success(`Successfully created ${batchForm.count} vouchers`);
         setIsBatchSheetOpen(false);
+        setBatchImageFile(null);
+        setBatchForm({ count: 10, name: "", imageUrl: "", description: "" });
         fetchVouchers(page);
       } else {
         toast.error("Failed to generate vouchers");
       }
-    } catch {
-      toast.error("Connection error");
+    } catch (err) {
+      console.error(err);
+      toast.error("Connection error during batch creation");
     } finally {
       setIsGenerating(false);
     }
@@ -214,10 +250,14 @@ export default function VouchersPage() {
     if (!file || !selectedVoucher) return;
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
+      // Frontend Resize
+      const resizedBlob = await resizeImage(file, 1200, 1200);
+      const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
+
+      const formData = new FormData();
+      formData.append("file", resizedFile);
+
       const token = localStorage.getItem("token");
       const res = await fetch("/api/vouchers/upload", {
         method: "POST",
@@ -233,8 +273,9 @@ export default function VouchersPage() {
       } else {
         toast.error("Failed to upload image");
       }
-    } catch {
-      toast.error("Error uploading image");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error resizing or uploading image");
     } finally {
       setIsUploading(false);
     }
@@ -319,7 +360,7 @@ export default function VouchersPage() {
                         <div className="flex items-center gap-3">
                           {voucher.imageUrl && (
                             <Image 
-                              src={voucher.imageUrl} 
+                              src={getOptimizedImageUrl(voucher.imageUrl, 80)} 
                               alt="Voucher" 
                               width={40}
                               height={40}
@@ -614,15 +655,58 @@ export default function VouchersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="batch-image">Image URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="batch-image"
-                  placeholder="https://..."
-                  value={batchForm.imageUrl}
-                  onChange={(e) => setBatchForm({ ...batchForm, imageUrl: e.target.value })}
+              <Label htmlFor="batch-image">Voucher Image</Label>
+              <div 
+                className="relative aspect-video w-full rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors overflow-hidden group"
+                onClick={() => document.getElementById('batch-image-upload')?.click()}
+              >
+                {batchImageFile || batchForm.imageUrl ? (
+                  <>
+                    <Image 
+                      src={batchImageFile ? URL.createObjectURL(batchImageFile) : batchForm.imageUrl} 
+                      alt="Preview" 
+                      fill 
+                      className="object-cover transition-opacity group-hover:opacity-40"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Upload className="h-8 w-8 text-primary" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-xs text-muted-foreground font-medium">Click to upload image</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 text-center px-4">
+                      Image will be used for all {batchForm.count} vouchers
+                    </p>
+                  </>
+                )}
+                <input 
+                  id="batch-image-upload"
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setBatchImageFile(file);
+                    if (file) setBatchForm(prev => ({ ...prev, imageUrl: "" }));
+                  }}
                 />
               </div>
+              {(batchImageFile || batchForm.imageUrl) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full text-[10px] h-6 mt-1 text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBatchImageFile(null);
+                    setBatchForm({ ...batchForm, imageUrl: "" });
+                  }}
+                >
+                  Remove Image
+                </Button>
+              )}
             </div>
 
             <div className="space-y-2">
