@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { eq, and, desc, count, like, or, isNull, inArray, isNotNull, sql } from 'drizzle-orm'
+import { eq, and, desc, count, like, or, isNull, inArray, isNotNull, sql, asc } from 'drizzle-orm'
 import { getDb } from './db/db'
-import { users, vouchers } from './db/schema'
+import { users, vouchers, templates } from './db/schema'
 import { SignJWT, jwtVerify } from 'jose'
 import bcrypt from 'bcryptjs'
 
@@ -40,14 +40,32 @@ const authMiddleware = async (c: any, next: any) => {
   }
 }
 
-// Helper to generate 6-digit alphanumeric code (numbers and uppercase letters)
-const generateVoucherCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+// Helper to generate 4-digit alphanumeric code (numbers and uppercase letters)
+const generateVoucherCode = async (db: any) => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // Removed confusing O, 0, I, 1
+  
+  // Get all active/available codes to ensure uniqueness
+  const existingCodes = await db.select({ code: vouchers.code })
+    .from(vouchers)
+    .where(or(eq(vouchers.status, 'available'), eq(vouchers.status, 'active')))
+  
+  const codeSet = new Set(existingCodes.map((v: any) => v.code))
+
   let result = ''
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  let attempts = 0
+  const maxAttempts = 100
+
+  while (attempts < maxAttempts) {
+    result = ''
+    for (let i = 0; i < 4; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    if (!codeSet.has(result)) return result
+    attempts++
   }
-  return result
+  
+  // If we can't find a 4-digit code (rare), fallback to a longer one to avoid failure
+  return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
 
 // Helper to normalize phone number (remove leading 0)
@@ -129,7 +147,9 @@ app.get('/stats', authMiddleware, async (c) => {
   const [
     voucherCounts,
     totalCustomers,
-    recentVouchers
+    recentVouchers,
+    bindHistory,
+    claimHistory
   ] = await Promise.all([
     db.select({ 
       status: vouchers.status, 
@@ -148,7 +168,28 @@ app.get('/stats', authMiddleware, async (c) => {
     .leftJoin(users, eq(vouchers.bindedToPhoneNumber, users.phoneNumber))
     .where(isNull(vouchers.deletedAt))
     .orderBy(desc(vouchers.createdAt))
-    .limit(5)
+    .limit(5),
+    db.select({
+      date: sql<string>`strftime('%Y-%m-%d', datetime(${vouchers.createdAt}/1000, 'unixepoch'))`,
+      count: count()
+    })
+    .from(vouchers)
+    .where(and(
+      isNull(vouchers.deletedAt), 
+      sql`${vouchers.createdAt} >= ${Date.now() - 90 * 24 * 60 * 60 * 1000}`
+    ))
+    .groupBy(sql`1`),
+    db.select({
+      date: sql<string>`strftime('%Y-%m-%d', datetime(${vouchers.usedAt}/1000, 'unixepoch'))`,
+      count: count()
+    })
+    .from(vouchers)
+    .where(and(
+      isNull(vouchers.deletedAt),
+      isNotNull(vouchers.usedAt),
+      sql`${vouchers.usedAt} >= ${Date.now() - 90 * 24 * 60 * 60 * 1000}`
+    ))
+    .groupBy(sql`1`)
   ])
 
   const voucherStats = {
@@ -165,12 +206,36 @@ app.get('/stats', authMiddleware, async (c) => {
     voucherStats.total += vc.count
   })
 
+  // Merge history into a single array for the chart
+  const historyMap = new Map<string, { date: string, binds: number, claims: number }>()
+  
+  // Initialize last 90 days
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const dateStr = d.toISOString().split('T')[0]
+    historyMap.set(dateStr, { date: dateStr, binds: 0, claims: 0 })
+  }
+
+  bindHistory.forEach(bh => {
+    if (historyMap.has(bh.date)) {
+      historyMap.get(bh.date)!.binds = bh.count
+    }
+  })
+
+  claimHistory.forEach(ch => {
+    if (historyMap.has(ch.date)) {
+      historyMap.get(ch.date)!.claims = ch.count
+    }
+  })
+
   return c.json({
     vouchers: voucherStats,
     customers: {
       total: totalCustomers[0].value,
     },
-    recentActivity: recentVouchers
+    recentActivity: recentVouchers,
+    chartData: Array.from(historyMap.values())
   })
 })
 
@@ -300,7 +365,7 @@ app.post('/vouchers', authMiddleware, async (c) => {
   const db = getDb(c.env.DB)
   const body = await c.req.json()
   const newVoucher = await db.insert(vouchers).values({
-    code: generateVoucherCode(),
+    code: await generateVoucherCode(db),
     status: 'available',
     name: body.name,
     imageUrl: body.imageUrl,
@@ -323,8 +388,30 @@ app.post('/vouchers/batch', authMiddleware, async (c) => {
 
   const newVouchers = []
   for (let i = 0; i < batchCount; i++) {
-    newVouchers.push({
-      code: generateVoucherCode(),
+    // Generate code logic inside the loop but we need to keep track of the ones we just generated
+    // To keep it simple and efficient for batch, we'll fetch once and manage locally
+  }
+
+  // Refactor: Get all active codes once
+  const activeCodes = await db.select({ code: vouchers.code })
+    .from(vouchers)
+    .where(or(eq(vouchers.status, 'available'), eq(vouchers.status, 'active')))
+  const codeSet = new Set(activeCodes.map((v: any) => v.code))
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+  const toInsert = []
+  for (let i = 0; i < batchCount; i++) {
+    let code = ''
+    let attempts = 0
+    while (attempts < 50) {
+      code = ''
+      for (let j = 0; j < 4; j++) code += chars.charAt(Math.floor(Math.random() * chars.length))
+      if (!codeSet.has(code)) break
+      attempts++
+    }
+    codeSet.add(code)
+    toInsert.push({
+      code,
       status: 'available' as 'available' | 'active' | 'claimed',
       name,
       imageUrl,
@@ -332,9 +419,7 @@ app.post('/vouchers/batch', authMiddleware, async (c) => {
     })
   }
 
-  // SQLite has a limit on variables in a single query, so we might need to chunk this if batchCount is very large.
-  // For 100 vouchers, it should be fine.
-  const result = await db.insert(vouchers).values(newVouchers).returning()
+  const result = await db.insert(vouchers).values(toInsert).returning()
   return c.json(result)
 })
 
@@ -347,7 +432,11 @@ app.post('/vouchers/upload', authMiddleware, async (c) => {
   if (!file) return c.json({ error: 'No file uploaded' }, 400)
 
   const fileName = `${Date.now()}-${file.name}`
-  await c.env.BUCKET.put(fileName, file)
+  await c.env.BUCKET.put(fileName, file, {
+    httpMetadata: {
+      contentType: file.type || 'image/jpeg',
+    }
+  })
 
   // In a real app, you'd use a custom domain or a public URL
   // For Cloudflare Workers, you can use a proxy endpoint or R2.dev URL
@@ -366,6 +455,7 @@ app.get('/vouchers/image/:name', async (c) => {
   headers.set('etag', object.httpEtag)
   // Cache images at the edge and browser for 1 year
   headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  headers.set('Content-Length', object.size.toString())
   
   if (!headers.has('Content-Type')) {
     if (name.endsWith('.png')) headers.set('Content-Type', 'image/png')
@@ -421,6 +511,7 @@ app.get('/vouchers', authMiddleware, async (c) => {
   const status = c.req.query('status')
   const requested = c.req.query('requested') === 'true'
   const offset = (page - 1) * limit
+  const now = new Date()
 
   const conditions = [isNull(vouchers.deletedAt)]
   if (status) {
@@ -458,12 +549,13 @@ app.get('/vouchers', authMiddleware, async (c) => {
     .limit(limit)
     .offset(offset)
     .orderBy(
-      sql`CASE 
-        WHEN ${vouchers.status} = 'active' THEN 1 
-        WHEN ${vouchers.status} = 'available' THEN 2 
-        WHEN ${vouchers.status} = 'claimed' THEN 3 
-        ELSE 4 
-      END`,
+      asc(sql`CASE 
+        WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR (${vouchers.expiryDate} + 86400) > ${Math.floor(now.getTime() / 1000)}) THEN 1
+        WHEN ${vouchers.status} = 'available' THEN 2
+        WHEN ${vouchers.status} = 'claimed' THEN 3
+        WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} + 86400) <= ${Math.floor(now.getTime() / 1000)} THEN 4
+        ELSE 5
+      END`),
       desc(vouchers.createdAt)
     )
 
@@ -628,11 +720,19 @@ app.get('/customer/vouchers', authMiddleware, async (c) => {
 
   const conditions = and(eq(vouchers.bindedToPhoneNumber, targetPhone), isNull(vouchers.deletedAt))
 
+  const now = Date.now()
   const [customerVouchers, totalCount] = await Promise.all([
     db.select()
       .from(vouchers)
       .where(conditions)
-      .orderBy(vouchers.status, vouchers.expiryDate)
+      .orderBy(
+        asc(sql`CASE 
+          WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR (${vouchers.expiryDate} + 86400) > ${Math.floor(now / 1000)}) THEN 1
+          WHEN ${vouchers.status} = 'claimed' THEN 2
+          ELSE 3
+        END`),
+        desc(vouchers.expiryDate)
+      )
       .limit(limit)
       .offset(offset),
     db.select({ value: count() }).from(vouchers).where(conditions)
@@ -665,6 +765,43 @@ app.get('/customer/vouchers/:id', authMiddleware, async (c) => {
   }
 
   return c.json(voucher)
+})
+
+// Template Management
+app.get('/templates', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+
+  const db = getDb(c.env.DB)
+  const results = await db.select().from(templates).orderBy(desc(templates.createdAt))
+  return c.json(results)
+})
+
+app.post('/templates', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+
+  const db = getDb(c.env.DB)
+  const body = await c.req.json()
+
+  const result = await db.insert(templates).values({
+    name: body.name,
+    description: body.description,
+    imageUrl: body.imageUrl,
+  }).returning()
+
+  return c.json(result[0])
+})
+
+app.delete('/templates/:id', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+
+  const db = getDb(c.env.DB)
+  const id = parseInt(c.req.param('id'))
+
+  await db.delete(templates).where(eq(templates.id, id))
+  return c.json({ success: true })
 })
 
 app.patch('/users/:id', authMiddleware, async (c) => {

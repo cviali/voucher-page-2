@@ -36,9 +36,18 @@ import {
   User, 
   Phone,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  BookMarked
 } from "lucide-react";
 import { formatDate, resizeImage } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Voucher {
   id: string;
@@ -55,11 +64,20 @@ interface Voucher {
   description: string | null;
 }
 
+interface Template {
+  id: number;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+}
+
 export default function VouchersPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isBatchSheetOpen, setIsBatchSheetOpen] = useState(false);
@@ -109,9 +127,24 @@ export default function VouchersPage() {
     }
   };
 
+  const fetchTemplates = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/templates", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setTemplates(await res.json());
+      }
+    } catch {
+      console.error("Failed to fetch templates");
+    }
+  };
+
   useEffect(() => {
     if (user && (user.role === "admin" || user.role === "cashier")) {
       fetchVouchers(page);
+      fetchTemplates();
     }
   }, [user, page]);
 
@@ -154,6 +187,23 @@ export default function VouchersPage() {
         }
       }
 
+      // If user checked "Save as Template", do it now
+      if (saveAsTemplate) {
+        await fetch("/api/templates", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: batchForm.name,
+            description: batchForm.description,
+            imageUrl: currentImageUrl,
+          }),
+        });
+        fetchTemplates();
+      }
+
       const res = await fetch("/api/vouchers/batch", {
         method: "POST",
         headers: {
@@ -169,6 +219,7 @@ export default function VouchersPage() {
         toast.success(`Successfully created ${batchForm.count} vouchers`);
         setIsBatchSheetOpen(false);
         setBatchImageFile(null);
+        setSaveAsTemplate(false);
         setBatchForm({ count: 10, name: "", imageUrl: "", description: "" });
         fetchVouchers(page);
       } else {
@@ -281,8 +332,22 @@ export default function VouchersPage() {
     }
   };
 
-  const getStatusBadge = (status: Voucher["status"]) => {
-    switch (status) {
+  const getStatusBadge = (voucher: Voucher) => {
+    const isExpired = voucher.expiryDate && new Date(voucher.expiryDate) < new Date();
+
+    if (voucher.status === "claimed") {
+      return (
+        <Badge variant="outline" className="text-green-600 border-green-600">
+          Claimed
+        </Badge>
+      );
+    }
+
+    if (isExpired) {
+      return <Badge variant="destructive">Expired</Badge>;
+    }
+
+    switch (voucher.status) {
       case "available":
         return <Badge variant="secondary">Available</Badge>;
       case "active":
@@ -291,14 +356,8 @@ export default function VouchersPage() {
             Active
           </Badge>
         );
-      case "claimed":
-        return (
-          <Badge variant="outline" className="text-green-600 border-green-600">
-            Claimed
-          </Badge>
-        );
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">{voucher.status}</Badge>;
     }
   };
 
@@ -313,7 +372,7 @@ export default function VouchersPage() {
         </div>
         <div className="flex gap-2">
           <Button onClick={() => setIsBatchSheetOpen(true)} disabled={isGenerating}>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4" />
             Create Vouchers
           </Button>
         </div>
@@ -373,7 +432,7 @@ export default function VouchersPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{getStatusBadge(voucher.status)}</TableCell>
+                      <TableCell>{getStatusBadge(voucher)}</TableCell>
                       <TableCell>
                         {voucher.bindedToPhoneNumber || "-"}
                       </TableCell>
@@ -531,7 +590,7 @@ export default function VouchersPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>
-                  {selectedVoucher && getStatusBadge(selectedVoucher.status)}
+                  {selectedVoucher && getStatusBadge(selectedVoucher)}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Created:</span>
@@ -634,6 +693,35 @@ export default function VouchersPage() {
           </SheetHeader>
 
           <div className="grid gap-6 p-4">
+            {templates.length > 0 && (
+              <div className="space-y-2">
+                <Label>Load from Template</Label>
+                <Select onValueChange={(value) => {
+                  const template = templates.find(t => t.id.toString() === value);
+                  if (template) {
+                    setBatchForm({
+                      ...batchForm,
+                      name: template.name,
+                      description: template.description || "",
+                      imageUrl: template.imageUrl || ""
+                    });
+                    setBatchImageFile(null);
+                  }
+                }}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="batch-count">Number of Vouchers</Label>
               <Input
@@ -718,6 +806,21 @@ export default function VouchersPage() {
                 value={batchForm.description}
                 onChange={(e) => setBatchForm({ ...batchForm, description: e.target.value })}
               />
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2 border-t">
+              <Checkbox 
+                id="save-template" 
+                checked={saveAsTemplate}
+                onCheckedChange={(checked) => setSaveAsTemplate(!!checked)}
+              />
+              <label 
+                htmlFor="save-template"
+                className="text-xs font-medium leading-none cursor-pointer flex items-center gap-1.5"
+              >
+                <BookMarked className="h-3.5 w-3.5 text-primary" />
+                Save these details as a template
+              </label>
             </div>
           </div>
 

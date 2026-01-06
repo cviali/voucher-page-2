@@ -12,6 +12,20 @@ export function formatDate(date: string | number | Date | null | undefined) {
   return d.toLocaleDateString('en-GB') // DD/MM/YYYY
 }
 
+export function formatDateTimeGMT7(date: string | number | Date | null | undefined) {
+  if (!date) return 'N/A'
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return 'N/A'
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Bangkok'
+  }).format(d)
+}
+
 export function getOptimizedImageUrl(url: string | null | undefined, width?: number, quality: number = 75) {
   if (!url) return ''
   if (!width) return url

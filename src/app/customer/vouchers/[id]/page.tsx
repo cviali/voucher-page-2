@@ -13,7 +13,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Default metadata
   const defaultTitle = 'Exclusive Voucher'
   const defaultDescription = 'View your voucher details and redeem your reward.'
-  const defaultImage = `${siteUrl}/og-image.png`
 
   try {
     // We use the public endpoint for metadata so it works for crawlers
@@ -27,22 +26,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       
       const title = voucher.name || defaultTitle
       
-      // Ensure image URL is absolute for OG tags
-      // The user confirmed the path format: https://voucher-page.christian-d59.workers.dev/api/vouchers/image/...
+      // For WhatsApp/Social media, use the direct API URL to avoid rewrites
       let absoluteImageUrl = voucher.imageUrl
       if (absoluteImageUrl) {
         if (!absoluteImageUrl.startsWith('http')) {
-          const separator = absoluteImageUrl.startsWith('/') ? '' : '/'
-          absoluteImageUrl = `${siteUrl}${separator}${absoluteImageUrl}`
+          // If it's a relative path like /api/vouchers/image/..., 
+          // extract the part after /api/ and append it to apiUrl
+          const pathAfterApi = absoluteImageUrl.startsWith('/api/') 
+            ? absoluteImageUrl.substring(4) 
+            : absoluteImageUrl.startsWith('api/') 
+              ? `/${absoluteImageUrl.substring(3)}` 
+              : absoluteImageUrl
+          
+          absoluteImageUrl = `${apiUrl}${pathAfterApi.startsWith('/') ? '' : '/'}${pathAfterApi}`
         }
-        // Optimize OG image for social media (1200px is ideal)
-        const paramSeparator = absoluteImageUrl.includes('?') ? '&' : '?'
-        absoluteImageUrl = `${absoluteImageUrl}${paramSeparator}w=1200&q=85`
       } else {
-        absoluteImageUrl = defaultImage
+        // Fallback to a safe default if no image (though siteUrl/favicon.svg is an SVG, WhatsApp likes JPEGs)
+        // Suggestion: if you have a branded og-image.jpg, use it here.
+        absoluteImageUrl = `${siteUrl}/favicon.svg`
       }
 
       return {
+        metadataBase: new URL(siteUrl),
         title: title,
         description: defaultDescription,
         openGraph: {
@@ -53,10 +58,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             url: absoluteImageUrl,
             width: 1200,
             height: 630,
-            alt: title,
+            type: 'image/jpeg', // WhatsApp prefers types to be stated
           }],
           type: 'website',
-          url: `${siteUrl}/customer/vouchers/${id}`,
+          url: `/customer/vouchers/${id}`,
         },
         twitter: {
           card: 'summary_large_image',
@@ -71,17 +76,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   return {
+    metadataBase: new URL(siteUrl),
     title: defaultTitle,
     description: defaultDescription,
-    openGraph: {
-      title: defaultTitle,
-      description: defaultDescription,
-      images: [{
-        url: defaultImage,
-        width: 1200,
-        height: 630,
-      }],
-    }
   }
 }
 

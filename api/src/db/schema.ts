@@ -27,3 +27,11 @@ export const vouchers = sqliteTable('vouchers', {
   description: text('description'),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
+
+export const templates = sqliteTable('templates', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});

@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { formatDate, getOptimizedImageUrl } from "@/lib/utils"
+import { formatDate, getOptimizedImageUrl, formatDateTimeGMT7 } from "@/lib/utils"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Clock, Info, CheckCircle2, Ticket } from "lucide-react"
@@ -19,6 +19,7 @@ interface Voucher {
   imageUrl: string | null;
   description: string | null;
   claimRequestedAt: string | null;
+  usedAt: string | null;
 }
 
 export default function VoucherDetailClient({ params }: { params: Promise<{ id: string }> }) {
@@ -78,7 +79,7 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
     }
   }
 
-  const isExpired = voucher ? new Date(voucher.expiryDate) < new Date() : false
+  const isExpired = voucher ? new Date(new Date(voucher.expiryDate).getTime() + 24 * 60 * 60 * 1000) < new Date() : false
   const isUsed = voucher ? voucher.status === 'claimed' : false
   const isRequested = voucher ? !!voucher.claimRequestedAt : false
   const isInactive = isExpired || isUsed
@@ -176,9 +177,17 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
               )}
 
               {isUsed && (
-                <div className="bg-muted p-6 rounded-xl flex items-center justify-center gap-3 text-muted-foreground">
-                  <CheckCircle2 className="w-6 h-6" />
-                  <span className="font-bold">Voucher Redeemed</span>
+                <div className="flex flex-col items-center justify-center gap-3 bg-muted p-8 rounded-xl text-muted-foreground border-2 border-dashed">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                    <span className="text-lg font-bold text-foreground">Voucher Redeemed</span>
+                  </div>
+                  <div className="text-center space-x-1">
+                    <span className="text-sm tracking-wider">Redemption Time:</span>
+                    <span className="text-sm ml-1">
+                      {formatDateTimeGMT7(voucher.usedAt)}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

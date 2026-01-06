@@ -32,6 +32,11 @@ interface Stats {
     createdAt: string;
     customerName: string | null;
   }[];
+  chartData: {
+    date: string;
+    binds: number;
+    claims: number;
+  }[];
 }
 
 export default function Page() {
@@ -91,10 +96,10 @@ export default function Page() {
       <div className="w-full">{stats && <DashboardStats stats={stats} />}</div>
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <ChartAreaInteractive />
+          <ChartAreaInteractive data={stats?.chartData} />
         </div>
         <div className="flex flex-col gap-8">
-          <Card className="flex flex-col">
+          <Card className="flex h-full flex-col">
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
               <CardDescription>Latest voucher updates</CardDescription>

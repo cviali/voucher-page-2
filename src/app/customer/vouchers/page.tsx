@@ -101,7 +101,9 @@ export default function CustomerVouchersPage() {
         ) : (
           <div className="grid gap-8">
             {vouchers.map((voucher, index) => {
-              const isExpired = new Date(voucher.expiryDate) < new Date()
+              const expiryDate = new Date(voucher.expiryDate)
+              // Valid until the end of the expiry day (next day 00:00)
+              const isExpired = new Date(expiryDate.getTime() + 24 * 60 * 60 * 1000) < new Date()
               const isUsed = voucher.status === 'claimed'
               const isInactive = isExpired || isUsed
               const isRequested = !!voucher.claimRequestedAt
@@ -113,8 +115,12 @@ export default function CustomerVouchersPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: (index % 4) * 0.1 }}
                 >
-                  <Link href={`/customer/vouchers/${voucher.id}`}>
-                    <Card className={`relative overflow-hidden border shadow-lg transition-all active:scale-[0.98] p-0 gap-0 group ${isInactive ? 'opacity-75 grayscale-[0.3]' : ''}`}>
+                  <Link 
+                    href={isExpired ? "#" : `/customer/vouchers/${voucher.id}`}
+                    onClick={(e) => isExpired && e.preventDefault()}
+                    className={isExpired ? "cursor-default block" : "block"}
+                  >
+                    <Card className={`relative overflow-hidden border shadow-lg transition-all ${!isExpired ? 'active:scale-[0.98]' : ''} p-0 gap-0 group ${isInactive ? 'opacity-75 grayscale-[0.3]' : ''}`}>
                       <div className="relative aspect-video w-full overflow-hidden">
                         {voucher.imageUrl ? (
                           <Image 
@@ -154,7 +160,6 @@ export default function CustomerVouchersPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">Voucher Code</span>
                             <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-                            <span className="text-[10px] font-bold tracking-[0.2em] text-primary uppercase">Valid for Dine-in</span>
                           </div>
                           <h3 className="font-mono text-2xl font-bold tracking-tighter text-foreground">
                             {voucher.code}
