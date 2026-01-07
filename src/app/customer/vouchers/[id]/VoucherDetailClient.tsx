@@ -124,7 +124,7 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-6 font-gotham">
               <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">{voucher.name || 'Voucher'}</h1>
                 <h2 className="text-xl font-mono font-medium text-muted-foreground">{voucher.code}</h2>

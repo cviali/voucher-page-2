@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: '*',
       allow: '/',
     },
-    sitemap: 'https://voucher-page.christian-d59.workers.dev/sitemap.xml',
+    sitemap: 'https://tch.vlocityarena.com/sitemap.xml',
   }
 }
