@@ -2,13 +2,13 @@
 
 import { useEffect, useState, use } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { formatDate, getOptimizedImageUrl, formatDateTimeGMT7 } from "@/lib/utils"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Clock, Info, CheckCircle2, Ticket } from "lucide-react"
+import { VoucherStatusBadge } from "@/components/voucher-status-badge"
 
 interface Voucher {
   id: string;
@@ -114,13 +114,12 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
                 </div>
               )}
               <div className="absolute top-4 right-4">
-                <Badge className={`px-3 py-1 rounded-full border-none text-xs font-semibold shadow-lg ${
-                  isUsed ? 'bg-zinc-500' : 
-                  isExpired ? 'bg-red-500' : 
-                  isRequested ? 'bg-amber-500' : 'bg-emerald-500'
-                }`}>
-                  {isUsed ? 'Used' : isExpired ? 'Expired' : isRequested ? 'Pending' : 'Active'}
-                </Badge>
+                <VoucherStatusBadge 
+                  status={voucher.status} 
+                  expiryDate={voucher.expiryDate}
+                  claimRequestedAt={voucher.claimRequestedAt}
+                  className="px-3 py-1 rounded-full border-none text-xs font-semibold shadow-lg"
+                />
               </div>
             </div>
 

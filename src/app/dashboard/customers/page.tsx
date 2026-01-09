@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,14 +26,23 @@ import { toast } from "sonner";
 import {
   Loader2,
   Plus,
-  User,
   Phone,
   Calendar,
   ChevronLeft,
   ChevronRight,
   Trash2,
+  Search,
+  ListFilter,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatIDR } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface Customer {
   id: number;
@@ -41,24 +50,36 @@ interface Customer {
   phoneNumber: string;
   dateOfBirth: string;
   username: string;
+  totalSpending: number;
 }
 
 export default function CustomersPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null
+  );
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Pagination
+  // Pagination & Filters
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const limit = 10;
+  const [limit, setLimit] = useState(30);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -73,34 +94,44 @@ export default function CustomersPage() {
     dateOfBirth: "",
   });
 
-  const fetchCustomers = async (currentPage: number) => {
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/users?role=customer&page=${currentPage}&limit=${limit}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const result = (await res.json()) as {
-          data: Customer[];
-          pagination: { totalPages: number; total: number };
-        };
-        setCustomers(result.data);
-        setTotalPages(result.pagination.totalPages);
-        setTotal(result.pagination.total);
+  const fetchCustomers = useCallback(
+    async (currentPage: number) => {
+      setIsLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `/api/users?role=customer&page=${currentPage}&limit=${limit}&search=${debouncedSearch}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (res.status === 401) {
+          logout();
+          return;
+        }
+        if (res.ok) {
+          const result = (await res.json()) as {
+            data: Customer[];
+            pagination: { totalPages: number; total: number };
+          };
+          setCustomers(result.data);
+          setTotalPages(result.pagination.totalPages);
+          setTotal(result.pagination.total);
+        }
+      } catch {
+        toast.error("Failed to fetch customers");
+      } finally {
+        setIsLoading(false);
       }
-    } catch {
-      toast.error("Failed to fetch customers");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [logout, limit, debouncedSearch]
+  );
 
   useEffect(() => {
     if (user && (user.role === "cashier" || user.role === "admin")) {
       fetchCustomers(page);
     }
-  }, [user, page]);
+  }, [user, page, fetchCustomers]);
 
   if (authLoading) return null;
   if (!user || (user.role !== "cashier" && user.role !== "admin")) return null;
@@ -195,14 +226,15 @@ export default function CustomersPage() {
     }
   };
 
-  const handleDeleteCustomer = async () => {
-    if (!selectedCustomer) return;
-    if (!confirm("Are you sure you want to delete this customer?")) return;
+  const handleDeleteCustomer = async (customerToDelete?: Customer) => {
+    const target = customerToDelete || selectedCustomer;
+    if (!target) return;
+    if (!confirm(`Are you sure you want to delete ${target.name}?`)) return;
 
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/users/${selectedCustomer.id}`, {
+      const res = await fetch(`/api/users/${target.id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -226,137 +258,208 @@ export default function CustomersPage() {
 
   return (
     <div className="flex flex-1 flex-col p-8 gap-8">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col">
-          <h1 className="text-2xl font-bold">Customers</h1>
-          <p className="text-muted-foreground">
-            Manage registered customers and their information.
-          </p>
-        </div>
-        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4" />
-              Add Customer
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="sm:max-w-md">
-            <SheetHeader>
-              <SheetTitle>Add New Customer</SheetTitle>
-              <SheetDescription>
-                Enter the customer&apos;s details to register them in the system.
-              </SheetDescription>
-            </SheetHeader>
-            <form onSubmit={handleAddCustomer} className="grid gap-6 px-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  placeholder="John Doe"
-                  required
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <div className="flex gap-2">
-                  <div className="flex items-center justify-center px-3 rounded-md border bg-muted text-muted-foreground text-sm font-medium">
-                    +62
-                  </div>
+      <div>
+        <h1 className="text-2xl font-bold">Manage Customers</h1>
+        <p className="text-muted-foreground">
+          View and manage your loyal customer database.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-y-3">
+        {/* Filters Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="flex-1 space-y-4">
+            <div className="md:hidden">
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="filters" className="border-none">
+                  <AccordionTrigger className="flex gap-2 py-0 hover:no-underline">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <ListFilter className="h-4 w-4" />
+                      Filter Customers
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-4 pb-0">
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="search-mobile" className="text-xs font-bold uppercase text-muted-foreground">Search</Label>
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="search-mobile"
+                            placeholder="Search by name or phone..."
+                            className="pl-8 bg-background"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+
+            {/* Desktop/Tablet Filters */}
+            <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="search-desktop" className="text-[10px] font-bold uppercase text-muted-foreground px-1">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="phone"
-                    placeholder="8123456789"
-                    required
-                    value={formData.phoneNumber}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phoneNumber: e.target.value })
-                    }
+                    id="search-desktop"
+                    placeholder="Search by name or phone..."
+                    className="pl-8 bg-background"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="dob">Date of Birth</Label>
-                <Input
-                  id="dob"
-                  placeholder="DD/MM/YYYY"
-                  required
-                  value={formData.dateOfBirth}
-                  onChange={(e) => {
-                    let val = e.target.value.replace(/\D/g, "");
-                    if (val.length > 2 && val.length <= 4) {
-                      val = val.slice(0, 2) + "/" + val.slice(2);
-                    } else if (val.length > 4) {
-                      val = val.slice(0, 2) + "/" + val.slice(2, 4) + "/" + val.slice(4, 8);
-                    }
-                    setFormData({ ...formData, dateOfBirth: val });
-                  }}
-                />
-              </div>
-              <SheetFooter className="p-0">
-                <Button type="submit" className="w-full" disabled={isAdding}>
-                  {isAdding && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Register Customer
-                </Button>
-              </SheetFooter>
-            </form>
-          </SheetContent>
-        </Sheet>
-      </div>
+            </div>
+          </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="flex gap-2">
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+              <SheetTrigger asChild>
+                <Button className="w-full md:w-auto">
+                  <Plus className="h-4 w-4" />
+                  Add Customer
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="sm:max-w-md overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Add New Customer</SheetTitle>
+                  <SheetDescription>
+                    Enter the customer&apos;s details to register them in the
+                    system.
+                  </SheetDescription>
+                </SheetHeader>
+                <form
+                  onSubmit={handleAddCustomer}
+                  className="grid gap-6 p-4"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      placeholder="John Doe"
+                      required
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <div className="flex gap-2">
+                      <div className="flex items-center justify-center px-3 rounded-md border bg-muted text-muted-foreground text-sm font-medium">
+                        +62
+                      </div>
+                      <Input
+                        id="phone"
+                        placeholder="8123456789"
+                        required
+                        value={formData.phoneNumber}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            phoneNumber: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dob">Date of Birth</Label>
+                    <Input
+                      id="dob"
+                      placeholder="DD/MM/YYYY"
+                      required
+                      value={formData.dateOfBirth}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, "");
+                        if (val.length > 2 && val.length <= 4) {
+                          val = val.slice(0, 2) + "/" + val.slice(2);
+                        } else if (val.length > 4) {
+                          val =
+                            val.slice(0, 2) +
+                            "/" +
+                            val.slice(2, 4) +
+                            "/" +
+                            val.slice(4, 8);
+                        }
+                        setFormData({ ...formData, dateOfBirth: val });
+                      }}
+                    />
+                  </div>
+                  <SheetFooter className="mt-6">
+                    <Button type="submit" className="w-full h-11 font-bold uppercase tracking-wider" disabled={isAdding}>
+                      {isAdding && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Register Customer
+                    </Button>
+                  </SheetFooter>
+                </form>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
-      ) : (
+
         <div className="space-y-4">
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Name</TableHead>
+                  <TableHead className="pl-6">Customer Name</TableHead>
                   <TableHead>Phone Number</TableHead>
-                  <TableHead className="pr-6">Date of Birth</TableHead>
+                  <TableHead>Date of Birth</TableHead>
+                  <TableHead className="text-right pr-6">Total Spending</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={3}
-                      className="text-center py-8 text-muted-foreground pl-6 pr-6"
-                    >
+                    <TableCell colSpan={4} className="h-24 text-center pl-6 pr-6">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Loading customers...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : customers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center pl-6 pr-6">
                       No customers found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   customers.map((customer) => (
-                    <TableRow 
-                      key={customer.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleRowClick(customer)}
-                    >
+                    <TableRow key={customer.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleRowClick(customer)}>
                       <TableCell className="font-medium pl-6">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          {customer.name}
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center border text-primary font-bold text-xs uppercase">
+                            {customer.name?.split(" ").map(n => n[0]).join("").slice(0, 2) || "?"}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold">{customer.name}</span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          {customer.phoneNumber}
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-sm">{customer.phoneNumber}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="pr-6">
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          {formatDate(customer.dateOfBirth)}
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-sm">{formatDate(customer.dateOfBirth)}</span>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 pr-6">
+                        {formatIDR(customer.totalSpending || 0)}
                       </TableCell>
                     </TableRow>
                   ))
@@ -365,36 +468,56 @@ export default function CustomersPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing {customers.length} of {total} customers
-            </p>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1 || isLoading}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-              <div className="text-sm font-medium">
-                Page {page} of {totalPages}
+          {!isLoading && customers.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 order-2 sm:order-1">
+                <p className="text-sm text-muted-foreground">
+                  Showing {customers.length} of {total} customers
+                </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || isLoading}
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
+              <div className="flex items-center space-x-2 order-1 sm:order-2">
+                <div className="flex items-center gap-2 mr-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
+                  <Select value={limit.toString()} onValueChange={(v) => {
+                    setLimit(parseInt(v));
+                    setPage(1);
+                  }}>
+                    <SelectTrigger size="sm" className="w-[70px]">
+                      <SelectValue placeholder={limit.toString()} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="text-sm font-medium px-2 min-w-[80px] text-center">
+                  Page {page} of {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
         <SheetContent className="sm:max-w-md">
@@ -404,7 +527,10 @@ export default function CustomersPage() {
               Update details for {selectedCustomer?.name}.
             </SheetDescription>
           </SheetHeader>
-          <form onSubmit={handleUpdateCustomer} className="grid gap-6 px-4 mt-4">
+          <form
+            onSubmit={handleUpdateCustomer}
+            className="grid gap-6 px-4 mt-4"
+          >
             <div className="space-y-2">
               <Label htmlFor="edit-name">Full Name</Label>
               <Input
@@ -427,7 +553,10 @@ export default function CustomersPage() {
                   required
                   value={editFormData.phoneNumber}
                   onChange={(e) =>
-                    setEditFormData({ ...editFormData, phoneNumber: e.target.value })
+                    setEditFormData({
+                      ...editFormData,
+                      phoneNumber: e.target.value,
+                    })
                   }
                 />
               </div>
@@ -444,7 +573,12 @@ export default function CustomersPage() {
                   if (val.length > 2 && val.length <= 4) {
                     val = val.slice(0, 2) + "/" + val.slice(2);
                   } else if (val.length > 4) {
-                    val = val.slice(0, 2) + "/" + val.slice(2, 4) + "/" + val.slice(4, 8);
+                    val =
+                      val.slice(0, 2) +
+                      "/" +
+                      val.slice(2, 4) +
+                      "/" +
+                      val.slice(4, 8);
                   }
                   setEditFormData({ ...editFormData, dateOfBirth: val });
                 }}
@@ -457,11 +591,11 @@ export default function CustomersPage() {
                 )}
                 Update Customer
               </Button>
-              <Button 
-                type="button" 
-                variant="destructive" 
-                className="w-full" 
-                onClick={handleDeleteCustomer}
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
+                onClick={() => handleDeleteCustomer()}
                 disabled={isDeleting}
               >
                 {isDeleting ? (

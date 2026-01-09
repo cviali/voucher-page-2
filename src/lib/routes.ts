@@ -3,7 +3,8 @@ import {
   IconDatabase, 
   IconUsers, 
   IconListDetails, 
-  IconInnerShadowTop 
+  IconInnerShadowTop,
+  IconHistory
 } from "@tabler/icons-react"
 
 export const ROUTES = [
@@ -42,5 +43,11 @@ export const ROUTES = [
     url: "/dashboard/claims",
     icon: IconInnerShadowTop,
     roles: ["cashier", "admin"],
+  },
+  {
+    title: "Audit Logs",
+    url: "/dashboard/audit",
+    icon: IconHistory,
+    roles: ["admin"],
   },
 ]

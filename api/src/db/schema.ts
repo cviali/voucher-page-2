@@ -8,12 +8,14 @@ export const users = sqliteTable('users', {
   phoneNumber: text('phone_number').unique(), // for customer, stored without country code
   dateOfBirth: text('date_of_birth'), // YYYY-MM-DD, for customer
   role: text('role', { enum: ['admin', 'cashier', 'customer'] }).notNull().default('customer'),
+  totalSpending: integer('total_spending').default(0), // cumulative spending in cents or smallest unit
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
 
 export const vouchers = sqliteTable('vouchers', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   code: text('code').notNull().unique(), // 16-digit uppercase string
+  templateId: integer('template_id').references(() => templates.id), // Link to template
   status: text('status', { enum: ['available', 'active', 'claimed'] }).notNull().default('available'),
   bindedToPhoneNumber: text('binded_to_phone_number').references(() => users.phoneNumber),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
@@ -22,6 +24,7 @@ export const vouchers = sqliteTable('vouchers', {
   approvedBy: text('approved_by').references(() => users.username),
   usedAt: integer('used_at', { mode: 'timestamp' }),
   claimRequestedAt: integer('claim_requested_at', { mode: 'timestamp' }),
+  spentAmount: integer('spent_amount').default(0), // amount spent in this transaction
   name: text('name'),
   imageUrl: text('image_url'),
   description: text('description'),
@@ -33,5 +36,24 @@ export const templates = sqliteTable('templates', {
   name: text('name').notNull(),
   description: text('description'),
   imageUrl: text('image_url'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
+export const redemptions = sqliteTable('redemptions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  voucherId: text('voucher_id').notNull().references(() => vouchers.id),
+  customerPhoneNumber: text('customer_phone_number').notNull().references(() => users.phoneNumber),
+  amount: integer('amount').notNull(),
+  processedBy: text('processed_by').notNull().references(() => users.username),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+});
+
+export const auditLogs = sqliteTable('audit_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  action: text('action').notNull(), // e.g., 'VOUCHER_BATCH_CREATE', 'USER_LOGIN', 'VOUCHER_CLAIM'
+  details: text('details'), // JSON string or text details
+  userId: integer('user_id').references(() => users.id),
+  username: text('username'), // Denormalized for quick viewing
+  ipAddress: text('ip_address'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });

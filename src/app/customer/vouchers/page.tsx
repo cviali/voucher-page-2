@@ -3,13 +3,13 @@
 import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { formatDate, getOptimizedImageUrl } from "@/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Ticket, Clock, Loader2 } from "lucide-react"
+import { VoucherStatusBadge } from "@/components/voucher-status-badge"
 
 interface Voucher {
   id: string;
@@ -28,7 +28,7 @@ export default function CustomerVouchersPage() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const { user, isLoading } = useAuth()
+  const { user, logout, isLoading } = useAuth()
 
   const fetchVouchers = useCallback(async (pageNum: number, isInitial: boolean = false) => {
     if (isInitial) setIsFetching(true)
@@ -44,6 +44,12 @@ export default function CustomerVouchersPage() {
           }
         }
       )
+
+      if (res.status === 401) {
+        logout()
+        return
+      }
+
       if (res.ok) {
         const result = (await res.json()) as {
           data: Voucher[]
@@ -67,7 +73,7 @@ export default function CustomerVouchersPage() {
       setIsFetching(false)
       setIsLoadingMore(false)
     }
-  }, [user])
+  }, [user, logout])
 
   useEffect(() => {
     if (user && user.role === 'customer') {
@@ -106,7 +112,6 @@ export default function CustomerVouchersPage() {
               const isExpired = new Date(expiryDate.getTime() + 24 * 60 * 60 * 1000) < new Date()
               const isUsed = voucher.status === 'claimed'
               const isInactive = isExpired || isUsed
-              const isRequested = !!voucher.claimRequestedAt
 
               return (
                 <motion.div
@@ -137,13 +142,12 @@ export default function CustomerVouchersPage() {
                         
                         {/* Status Overlay */}
                         <div className="absolute top-4 right-4 z-10">
-                          <Badge className={`px-4 py-1.5 rounded-full border-2 border-white/20 shadow-lg backdrop-blur-md ${
-                            isUsed ? 'bg-zinc-800 text-white' : 
-                            isExpired ? 'bg-red-600 text-white' : 
-                            isRequested ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
-                          }`}>
-                            {isUsed ? 'REDEEMED' : isExpired ? 'EXPIRED' : isRequested ? 'PENDING' : 'ACTIVE'}
-                          </Badge>
+                          <VoucherStatusBadge 
+                            status={voucher.status} 
+                            expiryDate={voucher.expiryDate}
+                            claimRequestedAt={voucher.claimRequestedAt}
+                            className={`px-4 py-1.5 rounded-full border-2 border-white/20 shadow-lg backdrop-blur-md`}
+                          />
                         </div>
 
                         {/* Bottom Gradient for Name */}

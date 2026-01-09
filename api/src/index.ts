@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { eq, and, desc, count, like, or, isNull, inArray, isNotNull, sql, asc } from 'drizzle-orm'
+import { eq, and, desc, count, like, or, isNull, inArray, isNotNull, sql, asc, lt, gt } from 'drizzle-orm'
 import { getDb } from './db/db'
-import { users, vouchers, templates } from './db/schema'
+import { users, vouchers, templates, redemptions, auditLogs } from './db/schema'
 import { SignJWT, jwtVerify } from 'jose'
 import bcrypt from 'bcryptjs'
 
@@ -38,6 +38,21 @@ const authMiddleware = async (c: any, next: any) => {
   } catch (e) {
     return c.json({ error: 'Invalid token' }, 401)
   }
+}
+
+// Helper to log audit actions
+const logAudit = (db: any, action: string, details: string, c: any, overrideUser?: any) => {
+  const user = overrideUser || c.get('user')
+  const logPromise = db.insert(auditLogs).values({
+    action,
+    details,
+    userId: user?.id,
+    username: user?.username || user?.phoneNumber || 'system',
+    ipAddress: c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown',
+  }).run()
+
+  // This tells Cloudflare to finish the write even after the response is sent to the user
+  c.executionCtx.waitUntil(logPromise)
 }
 
 // Helper to generate 4-digit alphanumeric code (numbers and uppercase letters)
@@ -100,6 +115,8 @@ app.post('/auth/login', async (c) => {
     .setExpirationTime('24h')
     .sign(SECRET)
 
+  logAudit(db, 'USER_LOGIN', `Staff user ${user.username} logged in`, c, user)
+
   return c.json({ token, user: { username: user.username, role: user.role, name: user.name, phoneNumber: user.phoneNumber } })
 })
 
@@ -129,6 +146,8 @@ app.post('/auth/customer/login', async (c) => {
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('24h')
     .sign(SECRET)
+
+  logAudit(db, 'USER_LOGIN', `Customer logged in: ${user.phoneNumber}`, c, user)
 
   return c.json({ token, user: { username: user.username, role: user.role, name: user.name, phoneNumber: user.phoneNumber } })
 })
@@ -162,6 +181,8 @@ app.get('/stats', authMiddleware, async (c) => {
       name: vouchers.name,
       status: vouchers.status,
       createdAt: vouchers.createdAt,
+      expiryDate: vouchers.expiryDate,
+      claimRequestedAt: vouchers.claimRequestedAt,
       customerName: users.name,
     })
     .from(vouchers)
@@ -278,6 +299,7 @@ app.get('/users', authMiddleware, async (c) => {
   const page = parseInt(c.req.query('page') || '1')
   const limit = parseInt(c.req.query('limit') || '10')
   const role = c.req.query('role') as 'admin' | 'cashier' | 'customer' | undefined
+  const search = c.req.query('search')
   const offset = (page - 1) * limit
 
   let whereClause = isNull(users.deletedAt)
@@ -288,13 +310,22 @@ app.get('/users', authMiddleware, async (c) => {
     whereClause = and(whereClause, eq(users.role, 'customer')) as any
   }
 
+  if (search) {
+    whereClause = and(whereClause, or(
+      like(users.phoneNumber, `%${search}%`),
+      like(users.name, `%${search}%`),
+      like(users.username, `%${search}%`)
+    )) as any
+  }
+
   const data = await db.select({
     id: users.id,
     name: users.name,
     phoneNumber: users.phoneNumber,
     dateOfBirth: users.dateOfBirth,
     role: users.role,
-    username: users.username
+    username: users.username,
+    totalSpending: users.totalSpending
   })
   .from(users)
   // @ts-ignore
@@ -349,6 +380,9 @@ app.post('/users', authMiddleware, async (c) => {
       dateOfBirth: body.dateOfBirth,
       role: targetRole,
     }).returning()
+
+    logAudit(db, 'USER_CREATE', `Created ${targetRole} user: ${username || normalizedPhone}`, c)
+
     return c.json(newUser[0])
   } catch (err: any) {
     if (err.message?.includes('UNIQUE constraint failed')) {
@@ -364,13 +398,29 @@ app.post('/vouchers', authMiddleware, async (c) => {
 
   const db = getDb(c.env.DB)
   const body = await c.req.json()
+  
+  // Handle template creation or lookup
+  let templateId = body.templateId
+  if (!templateId && body.name) {
+    const newTemplate = await db.insert(templates).values({
+      name: body.name,
+      imageUrl: body.imageUrl,
+      description: body.description,
+    }).returning()
+    templateId = newTemplate[0].id
+  }
+
   const newVoucher = await db.insert(vouchers).values({
     code: await generateVoucherCode(db),
     status: 'available',
+    templateId,
     name: body.name,
     imageUrl: body.imageUrl,
     description: body.description,
   }).returning()
+
+  logAudit(db, 'VOUCHER_CREATE', `Created voucher ${newVoucher[0].code}`, c)
+  
   return c.json(newVoucher[0])
 })
 
@@ -380,16 +430,21 @@ app.post('/vouchers/batch', authMiddleware, async (c) => {
 
   const db = getDb(c.env.DB)
   const body = await c.req.json()
-  const { count: batchCount, name, imageUrl, description } = body
+  const { count: batchCount, name, imageUrl, description, templateId: existingTemplateId } = body
 
   if (!batchCount || batchCount <= 0) {
     return c.json({ error: 'Invalid count' }, 400)
   }
 
-  const newVouchers = []
-  for (let i = 0; i < batchCount; i++) {
-    // Generate code logic inside the loop but we need to keep track of the ones we just generated
-    // To keep it simple and efficient for batch, we'll fetch once and manage locally
+  // Handle template
+  let templateId = existingTemplateId
+  if (!templateId && name) {
+    const newTemplate = await db.insert(templates).values({
+      name,
+      imageUrl,
+      description,
+    }).returning()
+    templateId = newTemplate[0].id
   }
 
   // Refactor: Get all active codes once
@@ -413,6 +468,7 @@ app.post('/vouchers/batch', authMiddleware, async (c) => {
     toInsert.push({
       code,
       status: 'available' as 'available' | 'active' | 'claimed',
+      templateId,
       name,
       imageUrl,
       description,
@@ -420,6 +476,8 @@ app.post('/vouchers/batch', authMiddleware, async (c) => {
   }
 
   const result = await db.insert(vouchers).values(toInsert).returning()
+  logAudit(db, 'VOUCHER_BATCH_CREATE', `Created ${batchCount} vouchers in batch`, c)
+
   return c.json(result)
 })
 
@@ -502,75 +560,101 @@ app.patch('/vouchers/:id', authMiddleware, async (c) => {
 })
 
 app.get('/vouchers', authMiddleware, async (c) => {
-  const user = c.get('user')
-  if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+  try {
+    const user = c.get('user')
+    if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
 
-  const db = getDb(c.env.DB)
-  const page = parseInt(c.req.query('page') || '1')
-  const limit = parseInt(c.req.query('limit') || '10')
-  const status = c.req.query('status')
-  const requested = c.req.query('requested') === 'true'
-  const offset = (page - 1) * limit
-  const now = new Date()
+    const db = getDb(c.env.DB)
+    const page = parseInt(c.req.query('page') || '1')
+    const limit = parseInt(c.req.query('limit') || '10')
+    const status = c.req.query('status')
+    const search = c.req.query('search')
+    const requested = c.req.query('requested') === 'true'
+    const offset = (page - 1) * limit
+    const now = new Date()
 
-  const conditions = [isNull(vouchers.deletedAt)]
-  if (status) {
-    const statusList = status.split(',')
-    conditions.push(inArray(vouchers.status, statusList as any))
-  } else if (requested) {
-    conditions.push(eq(vouchers.status, 'active'))
-    conditions.push(isNotNull(vouchers.claimRequestedAt))
-    conditions.push(isNull(vouchers.usedAt))
-  }
-
-  const query = db.select({
-    id: vouchers.id,
-    code: vouchers.code,
-    name: vouchers.name,
-    status: vouchers.status,
-    createdAt: vouchers.createdAt,
-    expiryDate: vouchers.expiryDate,
-    imageUrl: vouchers.imageUrl,
-    description: vouchers.description,
-    bindedToPhoneNumber: vouchers.bindedToPhoneNumber,
-    approvedBy: vouchers.approvedBy,
-    approvedAt: vouchers.approvedAt,
-    usedAt: vouchers.usedAt,
-    claimRequestedAt: vouchers.claimRequestedAt,
-    customerName: users.name,
-  })
-  .from(vouchers)
-  .leftJoin(users, eq(vouchers.bindedToPhoneNumber, users.phoneNumber))
-  .where(and(...conditions))
-
-  const countQuery = db.select({ value: count() }).from(vouchers).where(and(...conditions))
-
-  const data = await query
-    .limit(limit)
-    .offset(offset)
-    .orderBy(
-      asc(sql`CASE 
-        WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR (${vouchers.expiryDate} + 86400) > ${Math.floor(now.getTime() / 1000)}) THEN 1
-        WHEN ${vouchers.status} = 'available' THEN 2
-        WHEN ${vouchers.status} = 'claimed' THEN 3
-        WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} + 86400) <= ${Math.floor(now.getTime() / 1000)} THEN 4
-        ELSE 5
-      END`),
-      desc(vouchers.createdAt)
-    )
-
-  const totalResult = await countQuery
-  const total = totalResult[0].value
-
-  return c.json({
-    data,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit)
+    const conditions = [isNull(vouchers.deletedAt)]
+    if (status && status !== 'all') {
+      if (status === 'expired') {
+        conditions.push(and(
+          eq(vouchers.status, 'active'),
+          isNotNull(vouchers.expiryDate),
+          lt(vouchers.expiryDate, now)
+        ) as any)
+      } else if (status === 'active') {
+        conditions.push(and(
+          eq(vouchers.status, 'active'),
+          or(isNull(vouchers.expiryDate), gt(vouchers.expiryDate, now))
+        ) as any)
+      } else {
+        const statusList = status.split(',')
+        conditions.push(inArray(vouchers.status, statusList as any))
+      }
+    } else if (requested) {
+      conditions.push(eq(vouchers.status, 'active'))
+      conditions.push(isNotNull(vouchers.claimRequestedAt))
+      conditions.push(isNull(vouchers.usedAt))
     }
-  })
+
+    if (search) {
+      conditions.push(or(
+        like(vouchers.code, `%${search}%`),
+        like(vouchers.name, `%${search}%`)
+      ) as any)
+    }
+
+    const query = db.select({
+      id: vouchers.id,
+      code: vouchers.code,
+      name: vouchers.name,
+      status: vouchers.status,
+      createdAt: vouchers.createdAt,
+      expiryDate: vouchers.expiryDate,
+      imageUrl: vouchers.imageUrl,
+      description: vouchers.description,
+      bindedToPhoneNumber: vouchers.bindedToPhoneNumber,
+      approvedBy: vouchers.approvedBy,
+      approvedAt: vouchers.approvedAt,
+      usedAt: vouchers.usedAt,
+      claimRequestedAt: vouchers.claimRequestedAt,
+      customerName: users.name,
+    })
+    .from(vouchers)
+    .leftJoin(users, eq(vouchers.bindedToPhoneNumber, users.phoneNumber))
+    .where(and(...conditions))
+
+    const countQuery = db.select({ value: count() }).from(vouchers).where(and(...conditions))
+
+    const data = await query
+      .limit(limit)
+      .offset(offset)
+      .orderBy(
+        asc(sql`CASE 
+          WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR ${vouchers.expiryDate} > ${now.getTime()}) THEN 1
+          WHEN ${vouchers.status} = 'available' THEN 2
+          WHEN ${vouchers.status} = 'claimed' THEN 3
+          WHEN ${vouchers.status} = 'active' AND ${vouchers.expiryDate} <= ${now.getTime()} THEN 4
+          ELSE 5
+        END`),
+        desc(vouchers.createdAt)
+      )
+
+    const totalResult = await countQuery
+    const total = totalResult[0].value
+
+    return c.json({
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    })
+  } catch (err: any) {
+    console.error('Error fetching vouchers:', err)
+    return c.json({ error: err.message || 'Internal Server Error' }, 500)
+  }
 })
 
 app.post('/vouchers/bind', authMiddleware, async (c) => {
@@ -595,6 +679,10 @@ app.post('/vouchers/bind', authMiddleware, async (c) => {
     })
     .where(eq(vouchers.code, code))
     .returning()
+    
+  if (updatedVoucher.length > 0) {
+    logAudit(db, 'VOUCHER_BIND', `Bound voucher ${code} to ${phoneNumber}`, c)
+  }
     
   return c.json(updatedVoucher[0])
 })
@@ -648,6 +736,8 @@ app.post('/vouchers/bulk-bind', authMiddleware, async (c) => {
     results.push(updated[0])
   }
 
+  logAudit(db, 'VOUCHER_BULK_BIND', `Bulk bound ${results.length} vouchers for ${voucherName}`, c)
+
   return c.json({ success: true, count: results.length, data: results })
 })
 
@@ -656,20 +746,56 @@ app.post('/vouchers/claim', authMiddleware, async (c) => {
   if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
 
   const db = getDb(c.env.DB)
-  const { code } = await c.req.json()
+  const { code, spentAmount } = await c.req.json()
   
-  const updatedVoucher = await db.update(vouchers)
-    .set({ 
-      status: 'claimed',
-      approvedAt: new Date(),
-      approvedBy: user.username,
-      usedAt: new Date(),
-      claimRequestedAt: null
-    })
-    .where(eq(vouchers.code, code))
-    .returning()
+  // Find voucher first to get the binded customer
+  const voucher = await db.select().from(vouchers).where(eq(vouchers.code, code)).get()
+  if (!voucher) return c.json({ error: 'Voucher not found' }, 404)
+  if (voucher.status === 'claimed') return c.json({ error: 'Voucher already claimed' }, 400)
+
+  const finalSpentAmount = Math.max(0, spentAmount || 0)
+
+  // Use D1 Batching for better performance and to ensure atomicity
+  const batchQueries: any[] = [
+    db.update(vouchers)
+      .set({ 
+        status: 'claimed',
+        approvedAt: new Date(),
+        approvedBy: user.username,
+        usedAt: new Date(),
+        claimRequestedAt: null,
+        spentAmount: finalSpentAmount
+      })
+      .where(eq(vouchers.code, code))
+      .returning()
+  ]
+
+  // Add ledger and user spending updates to the same batch
+  if (voucher.bindedToPhoneNumber) {
+    batchQueries.push(
+      db.insert(redemptions).values({
+        voucherId: voucher.id,
+        customerPhoneNumber: voucher.bindedToPhoneNumber,
+        amount: finalSpentAmount,
+        processedBy: user.username,
+      })
+    )
+
+    batchQueries.push(
+      db.update(users)
+        .set({
+          totalSpending: sql`COALESCE(${users.totalSpending}, 0) + ${finalSpentAmount}`
+        })
+        .where(eq(users.phoneNumber, voucher.bindedToPhoneNumber))
+    )
+  }
+
+  const batchResults = await db.batch(batchQueries as any)
+  const updatedVoucher = batchResults[0] as any[]
+
+  logAudit(db, 'VOUCHER_CLAIM', `Claimed voucher ${code} for customer ${voucher.bindedToPhoneNumber || 'unknown'}. Amount: ${finalSpentAmount}`, c)
     
-  return c.json(updatedVoucher)
+  return c.json(updatedVoucher[0])
 })
 
 app.post('/customer/vouchers/:id/request-claim', authMiddleware, async (c) => {
@@ -694,6 +820,8 @@ app.post('/customer/vouchers/:id/request-claim', authMiddleware, async (c) => {
     .set({ claimRequestedAt: new Date() })
     .where(eq(vouchers.id, id))
     .returning()
+
+  logAudit(db, 'VOUCHER_CLAIM_REQUEST', `User ${userPhone} requested claim for voucher ${voucher.code}`, c)
 
   return c.json(updatedVoucher[0])
 })
@@ -909,6 +1037,8 @@ app.delete('/users/:id', authMiddleware, async (c) => {
     .set({ deletedAt: new Date() })
     .where(eq(users.id, id))
 
+  logAudit(db, 'USER_DELETE', `Deleted user ${targetUser.username || targetUser.phoneNumber}`, c)
+
   return c.json({ success: true })
 })
 
@@ -919,11 +1049,40 @@ app.delete('/vouchers/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')
   const db = getDb(c.env.DB)
 
-  await db.update(vouchers)
-    .set({ deletedAt: new Date() })
-    .where(eq(vouchers.id, id))
+  const voucher = await db.select().from(vouchers).where(eq(vouchers.id, id)).get()
+  if (voucher) {
+    await db.update(vouchers)
+      .set({ deletedAt: new Date() })
+      .where(eq(vouchers.id, id))
+
+    logAudit(db, 'VOUCHER_DELETE', `Deleted voucher ${voucher.code}`, c)
+  }
 
   return c.json({ success: true })
+})
+
+app.get('/audit-logs', authMiddleware, async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin') {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  const { limit = '50', offset = '0' } = c.req.query()
+  const db = getDb(c.env.DB)
+
+  const logs = await db.query.auditLogs.findMany({
+    orderBy: [desc(auditLogs.createdAt)],
+    limit: parseInt(limit),
+    offset: parseInt(offset),
+  })
+
+  // Get total count for pagination
+  const [totalCount] = await db.select({ value: count() }).from(auditLogs)
+
+  return c.json({
+    data: logs,
+    total: totalCount.value,
+  })
 })
 
 export default app
