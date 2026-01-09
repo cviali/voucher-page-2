@@ -30,11 +30,21 @@
 			// see https://opennext.js.org/cloudflare/caching
 			"binding": "WORKER_SELF_REFERENCE",
 			"service": "voucher-page"
+		},
+		{
+			"binding": "API",
+			"service": "voucher-api"
 		}
 	],
 	"observability": {
 		"enabled": true
 	},
+	"routes": [
+		{
+			"pattern": "tch.vlocityarena.com",
+			"custom_domain": true
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "voucher_page",

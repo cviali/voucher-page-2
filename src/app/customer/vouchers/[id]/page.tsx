@@ -7,8 +7,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const siteUrl = 'https://voucher-page.christian-d59.workers.dev'
-  const apiUrl = 'https://voucher-api.christian-d59.workers.dev'
+  const siteUrl = 'https://tch.vlocityarena.com'
+  const apiUrl = siteUrl + '/api'
   
   // Default metadata
   const defaultTitle = 'Exclusive Voucher'

@@ -26,6 +26,15 @@ export function formatDateTimeGMT7(date: string | number | Date | null | undefin
   }).format(d)
 }
 
+export function formatIDR(amount: number | null | undefined) {
+  if (amount === null || amount === undefined) return 'Rp 0'
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
 export function getOptimizedImageUrl(url: string | null | undefined, width?: number, quality: number = 75) {
   if (!url) return ''
   if (!width) return url
@@ -85,3 +94,15 @@ export async function resizeImage(file: File, maxWidth: number = 1200, maxHeight
     reader.onerror = (err) => reject(err);
   });
 }
+
+export const VOUCHER_STATUS_COLORS = {
+  claimed: "bg-zinc-800 text-white hover:bg-zinc-900 border-transparent font-bold uppercase",
+  redeemed: "bg-zinc-800 text-white hover:bg-zinc-900 border-transparent font-bold uppercase",
+  expired: "bg-red-600 text-white hover:bg-red-700 border-transparent font-bold uppercase",
+  pending: "bg-amber-500 text-white hover:bg-amber-600 border-transparent font-bold uppercase",
+  requested: "bg-amber-500 text-white hover:bg-amber-600 border-transparent font-bold uppercase",
+  active: "bg-emerald-600 text-white hover:bg-emerald-700 border-transparent font-bold uppercase",
+  available: "bg-zinc-400 text-white hover:bg-zinc-500 border-transparent font-bold uppercase",
+} as const;
+
+export type VoucherStatus = keyof typeof VOUCHER_STATUS_COLORS;

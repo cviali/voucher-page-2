@@ -65,7 +65,7 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
 
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Claimed Vouchers</CardDescription>
+          <CardDescription>Redeemed Vouchers</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             {stats.vouchers.claimed}
           </CardTitle>

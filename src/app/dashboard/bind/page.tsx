@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -24,14 +24,28 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Loader2,
   Search,
@@ -43,8 +57,11 @@ import {
   Trash2,
   MessageCircle,
   Users,
+  Ticket,
+  Link,
+  Calendar,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, VOUCHER_STATUS_COLORS } from "@/lib/utils";
 
 interface Voucher {
   id: string;
@@ -52,6 +69,7 @@ interface Voucher {
   name: string | null;
   status: string;
   createdAt: string;
+  expiryDate: string | null;
   imageUrl: string | null;
   description?: string | null;
   bindedToPhoneNumber?: string;
@@ -70,7 +88,9 @@ export default function BindPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"available" | "active" | "bulk">("available");
+  const [activeTab, setActiveTab] = useState<"available" | "active" | "bulk">(
+    "available"
+  );
 
   // Bulk Bind state
   const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
@@ -81,7 +101,7 @@ export default function BindPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const limit = 10;
+  const [limit, setLimit] = useState(30);
 
   // Form state
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,37 +113,40 @@ export default function BindPage() {
   const [isBinding, setIsBinding] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchVouchers = async (currentPage: number, status: string) => {
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        `/api/vouchers?status=${status}&page=${currentPage}&limit=${limit}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
+  const fetchVouchers = useCallback(
+    async (currentPage: number, status: string) => {
+      setIsLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `/api/vouchers?status=${status}&page=${currentPage}&limit=${limit}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (res.ok) {
+          const result = (await res.json()) as {
+            data: Voucher[];
+            pagination: { totalPages: number; total: number };
+          };
+          setVouchers(result.data);
+          setTotalPages(result.pagination.totalPages);
+          setTotal(result.pagination.total);
         }
-      );
-      if (res.ok) {
-        const result = (await res.json()) as {
-          data: Voucher[];
-          pagination: { totalPages: number; total: number };
-        };
-        setVouchers(result.data);
-        setTotalPages(result.pagination.totalPages);
-        setTotal(result.pagination.total);
+      } catch {
+        toast.error("Failed to fetch vouchers");
+      } finally {
+        setIsLoading(false);
       }
-    } catch {
-      toast.error("Failed to fetch vouchers");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [limit]
+  );
 
   useEffect(() => {
     if (user && (user.role === "cashier" || user.role === "admin")) {
       fetchVouchers(page, activeTab);
     }
-  }, [user, page, activeTab]);
+  }, [user, page, activeTab, fetchVouchers]);
 
   useEffect(() => {
     const searchUsers = async () => {
@@ -248,7 +271,7 @@ export default function BindPage() {
       });
 
       if (res.ok) {
-        const result = await res.json() as { count: number };
+        const result = (await res.json()) as { count: number };
         toast.success(`Successfully binded ${result.count} vouchers`);
         setBulkPhoneNumbers("");
         setBulkVoucherName("");
@@ -295,22 +318,29 @@ export default function BindPage() {
 
   const handleWhatsAppShare = (voucher: Voucher) => {
     if (!voucher.bindedToPhoneNumber) return;
-    
+
     const phoneNumber = voucher.bindedToPhoneNumber.replace(/\+/g, "");
     const baseUrl = window.location.origin;
-    const message = `Hi ${voucher.customerName || "Customer"}, here is your voucher link: ${baseUrl}/customer/vouchers/${voucher.id}`;
+    const message = `Hi ${
+      voucher.customerName || "Customer"
+    }, here is your voucher link: ${baseUrl}/customer/vouchers/${voucher.id}`;
     const encodedMessage = encodeURIComponent(message);
-    
-    window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
+
+    window.open(
+      `https://wa.me/${phoneNumber}?text=${encodedMessage}`,
+      "_blank"
+    );
   };
 
   return (
     <div className="flex flex-1 flex-col p-8 gap-8">
-      <div className="flex flex-col">
-        <h1 className="text-2xl font-bold">Bind Vouchers</h1>
-        <p className="text-muted-foreground">
-          Manage and assign vouchers to registered customers.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-bold">Bind Vouchers</h1>
+          <p className="text-muted-foreground">
+            Manage and assign vouchers to registered customers.
+          </p>
+        </div>
       </div>
 
       <Tabs
@@ -322,13 +352,15 @@ export default function BindPage() {
         }}
         className="w-full"
       >
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="available">Available</TabsTrigger>
-          <TabsTrigger value="active">Binded</TabsTrigger>
-          <TabsTrigger value="bulk">Bulk Bind</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsTrigger value="available">Available</TabsTrigger>
+            <TabsTrigger value="active">Binded</TabsTrigger>
+            <TabsTrigger value="bulk">Bulk Bind</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="bulk" className="mt-6">
+        <TabsContent value="bulk" className="mt-0">
           <div className="max-w-2xl mx-auto space-y-6 bg-card p-6 rounded-xl border shadow-sm">
             <div className="space-y-2">
               <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -336,30 +368,42 @@ export default function BindPage() {
                 Bulk Assign Vouchers
               </h2>
               <p className="text-sm text-muted-foreground">
-                Assign multiple vouchers of the same type to a list of customers.
+                Assign multiple vouchers of the same type to a list of
+                customers.
               </p>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="voucher-name">Voucher Name (Batch Name)</Label>
+                <Label
+                  htmlFor="voucher-name"
+                  className="text-xs uppercase font-bold text-muted-foreground px-1"
+                >
+                  Voucher Name (Batch Name)
+                </Label>
                 <Input
                   id="voucher-name"
                   placeholder="e.g. Welcome Discount 2024"
                   value={bulkVoucherName}
                   onChange={(e) => setBulkVoucherName(e.target.value)}
+                  className="bg-background"
                 />
-                <p className="text-[10px] text-muted-foreground">
-                  Must match the name used when creating the batch.
+                <p className="text-[10px] text-muted-foreground italic">
+                  * Must match the name used when creating the batch.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone-numbers">Phone Numbers</Label>
+                <Label
+                  htmlFor="phone-numbers"
+                  className="text-xs uppercase font-bold text-muted-foreground px-1"
+                >
+                  Phone Numbers
+                </Label>
                 <Textarea
                   id="phone-numbers"
                   placeholder="Enter phone numbers separated by commas or new lines..."
-                  className="min-h-[200px] font-mono text-sm"
+                  className="min-h-[200px] font-mono text-sm bg-background"
                   value={bulkPhoneNumbers}
                   onChange={(e) => setBulkPhoneNumbers(e.target.value)}
                 />
@@ -369,20 +413,41 @@ export default function BindPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bulk-expiry">Expiry Date</Label>
+                <Label
+                  htmlFor="bulk-expiry"
+                  className="text-xs uppercase font-bold text-muted-foreground px-1"
+                >
+                  Expiry Date
+                </Label>
                 <Input
                   id="bulk-expiry"
                   placeholder="DD/MM/YYYY"
                   value={expiryDate}
-                  onChange={(e) => setExpiryDate(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, "");
+                    if (val.length > 2 && val.length <= 4) {
+                      val = val.slice(0, 2) + "/" + val.slice(2);
+                    } else if (val.length > 4) {
+                      val =
+                        val.slice(0, 2) +
+                        "/" +
+                        val.slice(2, 4) +
+                        "/" +
+                        val.slice(4, 8);
+                    }
+                    setExpiryDate(val);
+                  }}
+                  className="bg-background"
                 />
               </div>
 
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 size="lg"
                 onClick={handleBulkBind}
-                disabled={isBulkBinding || !bulkVoucherName || !bulkPhoneNumbers}
+                disabled={
+                  isBulkBinding || !bulkVoucherName || !bulkPhoneNumbers
+                }
               >
                 {isBulkBinding ? (
                   <>
@@ -390,115 +455,329 @@ export default function BindPage() {
                     Binding Vouchers...
                   </>
                 ) : (
-                  "Assign Vouchers to Customers"
+                  <>
+                    <Ticket className="mr-2 h-5 w-5" />
+                    Assign Vouchers to Customers
+                  </>
                 )}
               </Button>
             </div>
           </div>
         </TabsContent>
 
-        <div className="mt-6">
-          {activeTab !== "bulk" && (
-            isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="pl-6">Voucher</TableHead>
-                        <TableHead>
-                          {activeTab === "available" ? "Created At" : "Customer"}
-                        </TableHead>
-                        <TableHead className="text-right pr-6">
-                          {activeTab === "available" ? "Status" : "Action"}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {vouchers.length === 0 ? (
-                        <TableRow>
-                          <TableCell
-                            colSpan={3}
-                            className="text-center py-8 text-muted-foreground"
-                          >
-                            No {activeTab} vouchers found.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        vouchers.map((voucher) => (
-                          <TableRow
-                            key={voucher.id}
-                            className={activeTab === "available" ? "cursor-pointer hover:bg-muted/50" : ""}
-                            onClick={() => activeTab === "available" && handleRowClick(voucher)}
-                          >
-                            <TableCell className="font-medium pl-6">
-                              <div className="flex items-center gap-3">
-                                {voucher.imageUrl && (
-                                  <Image
-                                    src={voucher.imageUrl}
-                                    alt=""
-                                    width={40}
-                                    height={40}
-                                    className="w-10 h-10 rounded-md object-cover border shadow-sm"
-                                  />
-                                )}
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-sm text-foreground">{voucher.name || 'Unnamed Voucher'}</span>
-                                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{voucher.code}</span>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {activeTab === "available" ? (
-                                formatDate(voucher.createdAt)
-                              ) : (
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{voucher.customerName}</span>
-                                  <span className="text-xs text-muted-foreground">{voucher.bindedToPhoneNumber}</span>
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right pr-6">
-                              {activeTab === "available" ? (
-                                <Badge variant="secondary">Available</Badge>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => handleWhatsAppShare(voucher)}
-                                >
-                                  <MessageCircle className="h-4 w-4 text-green-600" />
-                                  Share
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+        {(activeTab === "available" || activeTab === "active") && (
+          <div className="space-y-6">
+            <div className="md:hidden space-y-4">
+              {isLoading ? (
+                <div className="flex flex-col gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="h-24 w-full bg-muted animate-pulse rounded-lg"
+                    />
+                  ))}
                 </div>
+              ) : vouchers.length === 0 ? (
+                <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
+                  <p className="text-sm text-muted-foreground">
+                    No {activeTab} vouchers found.
+                  </p>
+                </div>
+              ) : (
+                <Accordion
+                  type="single"
+                  collapsible
+                  className="w-full space-y-3"
+                >
+                  {vouchers.map((voucher) => (
+                    <AccordionItem
+                      key={voucher.id}
+                      value={voucher.id.toString()}
+                      className="border rounded-lg px-4 bg-card shadow-sm"
+                    >
+                      <AccordionTrigger className="hover:no-underline py-4">
+                        <div className="flex items-center gap-3 text-left">
+                          <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted shrink-0 shadow-sm">
+                            {voucher.imageUrl ? (
+                              <Image
+                                src={voucher.imageUrl}
+                                alt=""
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center">
+                                <Ticket className="h-6 w-6 text-muted-foreground/40" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-mono font-bold text-[13px] truncate uppercase tracking-wider text-foreground">
+                              {voucher.code}
+                            </p>
+                            <p className="font-medium text-[11px] truncate leading-tight mt-0.5 text-muted-foreground">
+                              {voucher.name || "Unnamed Voucher"}
+                            </p>
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4 space-y-4 border-t pt-4">
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          {activeTab === "available" ? (
+                            <div className="space-y-1">
+                              <p className="text-muted-foreground uppercase font-bold text-[10px]">
+                                Created At
+                              </p>
+                              <p className="font-medium flex items-center gap-1.5 px-0.5">
+                                <Calendar className="h-3 w-3 text-muted-foreground" />
+                                {formatDate(voucher.createdAt)}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <p className="text-muted-foreground uppercase font-bold text-[10px]">
+                                Customer
+                              </p>
+                              <p className="font-medium truncate">
+                                {voucher.customerName || "Unknown"}
+                              </p>
+                              <p className="text-muted-foreground font-mono text-[10px]">
+                                {voucher.bindedToPhoneNumber}
+                              </p>
+                            </div>
+                          )}
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground uppercase font-bold text-[10px]">
+                              Status
+                            </p>
+                            <div>
+                              {activeTab === "available" ? (
+                                <Badge className={VOUCHER_STATUS_COLORS.available}>
+                                  AVAILABLE
+                                </Badge>
+                              ) : (
+                                <Badge className={VOUCHER_STATUS_COLORS.active}>
+                                  Active
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          {activeTab === "active" && (
+                            <div className="space-y-1 col-span-2 pt-2 border-t border-dashed text-muted-foreground">
+                              <p className="text-muted-foreground uppercase font-bold text-[10px]">
+                                Expires On
+                              </p>
+                              <p className="font-medium flex items-center gap-1.5">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(voucher.expiryDate)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2 pt-2 border-t mt-2">
+                          {activeTab === "available" ? (
+                            <Button
+                              className="w-full h-9 gap-2 shadow-sm text-[11px] font-bold uppercase tracking-wider"
+                              onClick={() => handleRowClick(voucher)}
+                            >
+                              <Link className="h-4 w-4" />
+                              Bind Voucher
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              className="w-full h-9 gap-2 shadow-sm text-[11px] font-bold uppercase tracking-wider"
+                              onClick={() => handleWhatsAppShare(voucher)}
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              Share on WhatsApp
+                            </Button>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              )}
+            </div>
 
-              <div className="flex items-center justify-between">
+            <div className="hidden md:block rounded-md border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Voucher</TableHead>
+                    <TableHead>
+                      {activeTab === "available" ? "Created At" : "Customer"}
+                    </TableHead>
+                    {activeTab === "active" && (
+                      <TableHead className="text-center">Expiry Date</TableHead>
+                    )}
+                    <TableHead className="text-right pr-6">
+                      {activeTab === "available" ? "Status" : "Action"}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    [1, 2, 3, 4, 5].map((i) => (
+                      <TableRow key={i}>
+                        <TableCell className="pl-6">
+                          <div className="h-12 w-48 bg-muted animate-pulse rounded" />
+                        </TableCell>
+                        <TableCell>
+                          <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                        </TableCell>
+                        {activeTab === "active" && (
+                          <TableCell>
+                            <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                          </TableCell>
+                        )}
+                        <TableCell className="pr-6">
+                          <div className="h-8 w-24 bg-muted animate-pulse rounded ml-auto" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : vouchers.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={activeTab === "active" ? 4 : 3}
+                        className="h-32 text-center text-muted-foreground"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Ticket className="h-8 w-8 text-muted-foreground/30" />
+                          <p>No {activeTab} vouchers found.</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    vouchers.map((voucher) => (
+                      <TableRow
+                        key={voucher.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() =>
+                          activeTab === "available" && handleRowClick(voucher)
+                        }
+                      >
+                        <TableCell className="font-mono font-medium pl-6">
+                          <div className="flex items-center gap-3">
+                            <div className="relative h-10 w-10 rounded-md overflow-hidden border bg-muted shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                              {voucher.imageUrl ? (
+                                <Image
+                                  src={voucher.imageUrl}
+                                  alt=""
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="h-full w-full flex items-center justify-center bg-zinc-100">
+                                  <Ticket className="h-5 w-5 text-zinc-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-bold uppercase tracking-wider text-foreground">
+                                {voucher.code}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground leading-tight">
+                                {voucher.name || "Unnamed Voucher"}
+                              </span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {activeTab === "available" ? (
+                            <div>
+                              {formatDate(voucher.createdAt)}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">
+                                {voucher.customerName || "Unknown Customer"}
+                              </span>
+                              <span className="text-xs">
+                                {voucher.bindedToPhoneNumber}
+                              </span>
+                            </div>
+                          )}
+                        </TableCell>
+                        {activeTab === "active" && (
+                          <TableCell className="text-center">
+                            {formatDate(voucher.expiryDate)}
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right pr-6">
+                          {activeTab === "available" ? (
+                            <Badge className={VOUCHER_STATUS_COLORS.available}>Available</Badge>
+                          ) : (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-2 shadow-sm px-3 font-bold"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleWhatsAppShare(voucher);
+                                    }}
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5" />
+                                    Share
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Share link via WhatsApp</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+              <div className="flex items-center gap-4 order-2 sm:order-1">
                 <p className="text-sm text-muted-foreground">
-                  Showing {vouchers.length} of {total} {activeTab} vouchers
+                  Showing {vouchers.length} of {total} vouchers
                 </p>
-                <div className="flex items-center space-x-2">
+              </div>
+              <div className="flex items-center space-x-2 order-1 sm:order-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    Rows per page
+                  </span>
+                  <Select
+                    value={limit.toString()}
+                    onValueChange={(v) => {
+                      setLimit(parseInt(v));
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger size="sm" className="w-[70px]">
+                      <SelectValue placeholder={limit.toString()} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1 || isLoading}
+                    className="h-8 w-8 p-0"
                   >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <div className="text-sm font-medium">
+                  <div className="text-sm font-medium min-w-[80px] text-center">
                     Page {page} of {totalPages}
                   </div>
                   <Button
@@ -506,15 +785,15 @@ export default function BindPage() {
                     size="sm"
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages || isLoading}
+                    className="h-8 w-8 p-0"
                   >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </Tabs>
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
@@ -540,9 +819,7 @@ export default function BindPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Created:</span>
-                  <span>
-                    {formatDate(selectedVoucher?.createdAt)}
-                  </span>
+                  <span>{formatDate(selectedVoucher?.createdAt)}</span>
                 </div>
                 {selectedVoucher?.imageUrl && (
                   <div className="pt-2">
@@ -570,7 +847,12 @@ export default function BindPage() {
                   if (val.length > 2 && val.length <= 4) {
                     val = val.slice(0, 2) + "/" + val.slice(2);
                   } else if (val.length > 4) {
-                    val = val.slice(0, 2) + "/" + val.slice(2, 4) + "/" + val.slice(4, 8);
+                    val =
+                      val.slice(0, 2) +
+                      "/" +
+                      val.slice(2, 4) +
+                      "/" +
+                      val.slice(4, 8);
                   }
                   setExpiryDate(val);
                 }}
