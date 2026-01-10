@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
+import { getApiUrl } from "@/lib/api-config"
 
 function LoginForm() {
   const [username, setUsername] = useState("")
@@ -22,16 +23,16 @@ function LoginForm() {
     e.preventDefault()
     setError("")
     setIsLoading(true)
-    
+
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(getApiUrl('/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       })
-      
+
       const data = await res.json() as { token: string; user: { username: string; phoneNumber?: string; role: 'admin' | 'cashier' | 'customer'; name: string }; error?: string }
-      
+
       if (res.ok) {
         login(data.token, data.user, redirect || undefined)
       } else {
@@ -56,23 +57,23 @@ function LoginForm() {
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
-              <Input 
-                id="username" 
-                placeholder="Username" 
+              <Input
+                id="username"
+                placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                required 
+                required
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
+              <Input
+                id="password"
                 type="password"
-                placeholder="Password" 
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required 
+                required
               />
             </div>
           </CardContent>

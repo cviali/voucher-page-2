@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { getApiUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,7 +101,7 @@ export default function CustomersPage() {
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(
-          `/api/users?role=customer&page=${currentPage}&limit=${limit}&search=${debouncedSearch}`,
+          getApiUrl(`/users?role=customer&page=${currentPage}&limit=${limit}&search=${debouncedSearch}`),
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -153,7 +154,7 @@ export default function CustomersPage() {
     setIsAdding(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/users", {
+      const res = await fetch(getApiUrl("/users"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -199,7 +200,7 @@ export default function CustomersPage() {
     setIsUpdating(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/users/${selectedCustomer.id}`, {
+      const res = await fetch(getApiUrl(`/users/${selectedCustomer.id}`), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -234,7 +235,7 @@ export default function CustomersPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/users/${target.id}`, {
+      const res = await fetch(getApiUrl(`/users/${target.id}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -411,7 +412,8 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Customer Name</TableHead>
+                  <TableHead className="w-[80px] pl-6">ID</TableHead>
+                  <TableHead>Customer Name</TableHead>
                   <TableHead>Phone Number</TableHead>
                   <TableHead>Date of Birth</TableHead>
                   <TableHead className="text-right pr-6">Total Spending</TableHead>
@@ -420,7 +422,7 @@ export default function CustomersPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center pl-6 pr-6">
+                    <TableCell colSpan={5} className="h-24 text-center pl-6 pr-6">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>Loading customers...</span>
@@ -429,14 +431,17 @@ export default function CustomersPage() {
                   </TableRow>
                 ) : customers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center pl-6 pr-6">
+                    <TableCell colSpan={5} className="h-24 text-center pl-6 pr-6">
                       No customers found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   customers.map((customer) => (
                     <TableRow key={customer.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleRowClick(customer)}>
-                      <TableCell className="font-medium pl-6">
+                      <TableCell className="pl-6">
+                        #{customer.id}
+                      </TableCell>
+                      <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center border text-primary font-bold text-xs uppercase">
                             {customer.name?.split(" ").map(n => n[0]).join("").slice(0, 2) || "?"}
@@ -458,7 +463,7 @@ export default function CustomersPage() {
                           <span className="text-sm">{formatDate(customer.dateOfBirth)}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 pr-6">
+                      <TableCell className="text-right pr-6">
                         {formatIDR(customer.totalSpending || 0)}
                       </TableCell>
                     </TableRow>
@@ -522,7 +527,12 @@ export default function CustomersPage() {
       <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
         <SheetContent className="sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Edit Customer</SheetTitle>
+            <SheetTitle className="flex items-center gap-2">
+              Edit Customer
+              <span className="text-sm font-normal text-muted-foreground">
+                (#{selectedCustomer?.id})
+              </span>
+            </SheetTitle>
             <SheetDescription>
               Update details for {selectedCustomer?.name}.
             </SheetDescription>

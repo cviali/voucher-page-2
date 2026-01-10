@@ -17,6 +17,10 @@ import { Ticket } from "lucide-react";
 import Image from "next/image";
 import { VoucherClaimDrawer } from "@/components/voucher-claim-drawer";
 import { VoucherStatusBadge } from "@/components/voucher-status-badge";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
+
+import { getApiUrl } from "@/lib/api-config";
 
 interface Voucher {
   id: string;
@@ -59,81 +63,64 @@ interface Stats {
 export default function Page() {
   const { user, logout, isLoading: authLoading } = useAuth();
 
+  const [date, setDate] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: new Date(),
+  });
   const [stats, setStats] = useState<Stats | null>(null);
   const [requestedVouchers, setRequestedVouchers] = useState<Voucher[]>([]);
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [isRequestedLoading, setIsRequestedLoading] = useState(true);
 
-  const fetchStats = useCallback(async () => {
+  const fetchDashboardData = useCallback(async () => {
+    if (!user || !date?.from || !date?.to) return;
+
+    setIsStatsLoading(true);
+    setIsRequestedLoading(true);
+
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/stats", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 401) {
+      const from = encodeURIComponent(date.from.toISOString());
+      const to = encodeURIComponent(date.to.toISOString());
+
+      const [statsRes, vouchersRes] = await Promise.all([
+        fetch(getApiUrl(`/stats?from=${from}&to=${to}`), {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(getApiUrl("/vouchers?requested=true&limit=5"), {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ]);
+
+      if (statsRes.status === 401 || vouchersRes.status === 401) {
         logout();
         return;
       }
-      if (res.ok) {
-        const data = (await res.json()) as Stats;
-        setStats(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch stats:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [logout]);
 
-  const fetchRequestedVouchers = useCallback(async () => {
-    setIsRequestedLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/vouchers?requested=true&limit=5", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const result = (await res.json()) as { data: Voucher[] };
+      if (statsRes.ok) {
+        setStats((await statsRes.json()) as Stats);
+      }
+      if (vouchersRes.ok) {
+        const result = (await vouchersRes.json()) as { data: Voucher[] };
         setRequestedVouchers(result.data);
       }
     } catch (err) {
-      console.error("Failed to fetch requested vouchers:", err);
+      console.error("Failed to fetch dashboard data:", err);
     } finally {
+      setLoading(false);
+      setIsStatsLoading(false);
       setIsRequestedLoading(false);
     }
-  }, []);
+  }, [user, date, logout]); // Removed stats from dependencies
 
   useEffect(() => {
-    if (user) {
-      fetchStats();
-      fetchRequestedVouchers();
-    }
-  }, [user, fetchStats, fetchRequestedVouchers]);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
-  if (authLoading || loading) {
-    return (
-      <div className="flex flex-1 flex-col gap-8 p-8">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-4 w-96" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-4">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-        </div>
-        <div className="grid gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <Skeleton className="h-[400px] w-full" />
-          </div>
-          <Skeleton className="h-[400px] w-full" />
-        </div>
-      </div>
-    );
-  }
+  if (authLoading) return null;
 
   if (!user) return null;
 
@@ -146,12 +133,21 @@ export default function Page() {
             Welcome back, {user.name}. Here&apos;s what&apos;s happening today.
           </p>
         </div>
-        <div className="text-sm font-medium px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full">
-          {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </div>
+        <DatePickerWithRange date={date} setDate={setDate} />
       </div>
 
-      <div className="w-full">{stats && <DashboardStats stats={stats} />}</div>
+      <div className="w-full">
+        {loading || isStatsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+          </div>
+        ) : (
+          stats && <DashboardStats stats={stats} />
+        )}
+      </div>
 
       {/* Requested Redemptions Section */}
       <div className="space-y-4">
@@ -160,11 +156,11 @@ export default function Page() {
             Pending Redemption Requests
           </h2>
         </div>
-        
+
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {isRequestedLoading ? (
+          {loading || isRequestedLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full" />
+              <Skeleton key={i} className="h-24 w-full rounded-xl" />
             ))
           ) : requestedVouchers.length === 0 ? (
             <div className="col-span-full py-8 text-center border rounded-xl bg-muted/20 text-muted-foreground text-sm">
@@ -172,8 +168,8 @@ export default function Page() {
             </div>
           ) : (
             requestedVouchers.map((voucher) => (
-              <div 
-                key={voucher.id} 
+              <div
+                key={voucher.id}
                 className="p-4 cursor-pointer hover:border-amber-500/50 transition-all border-2 border-amber-100 bg-amber-50/30 dark:bg-amber-950/20 dark:border-amber-900/50 active:scale-95 rounded-xl"
                 onClick={() => {
                   setSelectedVoucher(voucher);
@@ -209,56 +205,73 @@ export default function Page() {
 
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <ChartAreaInteractive data={stats?.chartData} />
+          {loading || isStatsLoading ? (
+            <Skeleton className="h-[450px] w-full rounded-xl" />
+          ) : (
+            <ChartAreaInteractive data={stats?.chartData} />
+          )}
         </div>
         <div className="flex flex-col gap-8">
-          <Card className="flex h-full flex-col">
+          <Card className="flex h-full flex-col overflow-hidden">
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
               <CardDescription>Latest voucher updates</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="relative space-y-6 pl-2 font-sans">
-                {/* Timeline line */}
-                <div className="absolute left-[13px] top-2 bottom-2 w-px bg-border" />
+              {loading || isStatsLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-3 w-3 rounded-full" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="relative space-y-6 pl-2 font-sans">
+                  {/* Timeline line */}
+                  <div className="absolute left-[13px] top-2 bottom-2 w-px bg-border text-primary/20" />
 
-                {stats?.recentActivity.map((activity) => (
-                  <div key={activity.id} className="relative flex items-center gap-4">
-                    <div
-                      className={`relative z-10 h-2.5 w-2.5 rounded-full border-2 border-background ${
-                        activity.status === "claimed" || activity.status === "redeemed"
+                  {stats?.recentActivity.map((activity) => (
+                    <div key={activity.id} className="relative flex items-center gap-4 group">
+                      <div
+                        className={`relative z-10 h-2.5 w-2.5 rounded-full border-2 border-background transition-shadow duration-300 ${activity.status === "claimed" || activity.status === "redeemed"
                           ? "bg-zinc-800 shadow-[0_0_8px_rgba(39,39,42,0.4)]"
                           : activity.status === "active"
-                          ? "bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.4)]"
-                          : activity.status === "expired"
-                          ? "bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.4)]"
-                          : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-pulse"
-                      }`}
-                    />
-                    <div className="flex-1 space-y-0.5">
-                      <p className="text-sm font-bold leading-none tracking-tight">
-                        {activity.name || activity.code}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {activity.customerName
-                          ? `Bound to ${activity.customerName}`
-                          : activity.code}
-                      </p>
+                            ? "bg-emerald-600 dark:bg-emerald-500 shadow-[0_0_8px_rgba(5,150,105,0.4)] dark:shadow-[0_0_8px_rgba(5,150,105,0.2)]"
+                            : activity.status === "expired"
+                              ? "bg-red-600 dark:bg-red-500 shadow-[0_0_8px_rgba(220,38,38,0.4)] dark:shadow-[0_0_8px_rgba(220,38,38,0.2)]"
+                              : "bg-amber-500 dark:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)] dark:shadow-[0_0_8px_rgba(245,158,11,0.2)] animate-pulse"
+                          }`}
+                      />
+                      <div className="flex-1 space-y-0.5">
+                        <p className="text-sm font-bold leading-none tracking-tight">
+                          {activity.name || activity.code}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {activity.customerName
+                            ? `Bound to ${activity.customerName}`
+                            : activity.code}
+                        </p>
+                      </div>
+                      <VoucherStatusBadge
+                        status={activity.status}
+                        expiryDate={activity.expiryDate}
+                        claimRequestedAt={activity.claimRequestedAt}
+                        className="text-[9px] px-1.5 h-5 shadow-xs"
+                      />
                     </div>
-                    <VoucherStatusBadge 
-                      status={activity.status} 
-                      expiryDate={activity.expiryDate} 
-                      claimRequestedAt={activity.claimRequestedAt}
-                      className="text-[9px] px-1.5 h-5"
-                    />
-                  </div>
-                ))}
-                {(!stats?.recentActivity || stats.recentActivity.length === 0) && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No recent activity
-                  </p>
-                )}
-              </div>
+                  ))}
+                  {(!stats?.recentActivity || stats.recentActivity.length === 0) && (
+                    <p className="text-sm text-muted-foreground text-center py-4 italic">
+                      No recent activity
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -269,8 +282,7 @@ export default function Page() {
         onOpenChange={setIsSheetOpen}
         voucher={selectedVoucher}
         onSuccess={() => {
-          fetchRequestedVouchers();
-          fetchStats(); // Update stats as well since a claim changes the dashboard metrics
+          fetchDashboardData();
         }}
       />
     </div>

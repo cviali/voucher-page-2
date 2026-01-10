@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { getApiUrl } from "@/lib/api-config";
 import {
   Loader2,
   User,
@@ -63,7 +64,7 @@ export function VoucherClaimDrawer({
     setIsClaiming(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/vouchers/claim", {
+      const res = await fetch(getApiUrl("/vouchers/claim"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -98,7 +99,7 @@ export function VoucherClaimDrawer({
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/vouchers/${voucher.id}`, {
+      const res = await fetch(getApiUrl(`/vouchers/${voucher.id}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -193,7 +194,7 @@ export function VoucherClaimDrawer({
               htmlFor="spent-amount"
               className="text-sm font-bold flex items-center gap-2 px-1"
             >
-              <Banknote className="h-4 w-4 text-green-600" />
+              <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-500" />
               Transaction Amount Spent
             </Label>
             <div className="relative group">
@@ -210,38 +211,34 @@ export function VoucherClaimDrawer({
                 autoFocus
               />
             </div>
-            <p className="text-[10px] text-muted-foreground italic px-1 leading-relaxed">
-              * Entering the transaction amount records the customer&apos;s spending
-              and helps track overall loyalty levels.
-            </p>
           </div>
         </div>
 
         <SheetFooter className="mt-8 flex flex-col gap-3 px-4 pb-4">
           <Button
-            className="w-full font-bold bg-green-600 hover:bg-green-700 text-white"
+            className="w-full font-bold bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600/80 dark:hover:bg-emerald-600 text-white"
             disabled={isClaiming || !spentAmount}
             onClick={handleClaim}
           >
             {isClaiming ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <CheckCircle2 className="mr-2 h-4 w-4" />
+              <CheckCircle2 className="h-4 w-4" />
             )}
-            CONFIRM & CLAIM VOUCHER
+            Claim Voucher
           </Button>
           <Button
             variant="destructive"
-            className="w-full font-bold opacity-70 hover:opacity-100"
+            className="w-full font-bold opacity-80 hover:opacity-100 dark:bg-destructive/40 dark:hover:bg-destructive/60"
             disabled={isDeleting || isClaiming}
             onClick={handleDeleteVoucher}
           >
             {isDeleting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
             )}
-            VOID VOUCHER
+            Void Voucher
           </Button>
         </SheetFooter>
       </SheetContent>

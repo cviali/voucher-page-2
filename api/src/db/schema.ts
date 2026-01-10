@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -29,7 +29,11 @@ export const vouchers = sqliteTable('vouchers', {
   imageUrl: text('image_url'),
   description: text('description'),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
-});
+}, (table) => ({
+  phoneNumberIdx: index('phone_number_idx').on(table.bindedToPhoneNumber),
+  statusIdx: index('status_idx').on(table.status),
+  createdAtIdx: index('created_at_idx').on(table.createdAt),
+}));
 
 export const templates = sqliteTable('templates', {
   id: integer('id').primaryKey({ autoIncrement: true }),

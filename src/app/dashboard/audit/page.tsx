@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { getApiUrl } from "@/lib/api-config";
 import {
   Table,
   TableBody,
@@ -45,14 +46,14 @@ export default function AuditLogPage() {
     try {
       const token = localStorage.getItem("token");
       const offset = (currentPage - 1) * limit;
-      const res = await fetch(`/api/audit-logs?limit=${limit}&offset=${offset}`, {
+      const res = await fetch(getApiUrl(`/audit-logs?limit=${limit}&offset=${offset}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (res.status === 401) {
         return;
       }
-      
+
       if (res.ok) {
         const result = (await res.json()) as { data: AuditLog[]; total: number };
         setLogs(result.data);
@@ -100,7 +101,7 @@ export default function AuditLogPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8">
+    <div className="flex flex-col gap-8 p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
@@ -113,7 +114,7 @@ export default function AuditLogPage() {
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-md border overflow-hidden bg-background">
+        <div className="rounded-md border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -155,7 +156,7 @@ export default function AuditLogPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                        {log.action.replace(/_/g, " ")}
+                      {log.action.replace(/_/g, " ")}
                     </TableCell>
                     <TableCell className="max-w-xs md:max-w-md lg:max-w-xl" title={log.details || ""}>
                       {log.details}

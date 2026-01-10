@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { formatDate, getOptimizedImageUrl, formatDateTimeGMT7 } from "@/lib/utils"
+import { getApiUrl } from "@/lib/api-config"
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { Clock, Info, CheckCircle2, Ticket } from "lucide-react"
@@ -33,7 +34,7 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
     const fetchVoucher = async () => {
       try {
         const token = localStorage.getItem("token")
-        const res = await fetch(`/api/customer/vouchers/${id}`, {
+        const res = await fetch(getApiUrl(`/customer/vouchers/${id}`), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -59,7 +60,7 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
     setIsRequesting(true)
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`/api/customer/vouchers/${voucher.id}/request-claim`, {
+      const res = await fetch(getApiUrl(`/customer/vouchers/${voucher.id}/request-claim`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -102,10 +103,10 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
           >
             <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
               {voucher.imageUrl ? (
-                <Image 
-                  src={getOptimizedImageUrl(voucher.imageUrl, 1000)} 
-                  alt="Voucher" 
-                  fill 
+                <Image
+                  src={getOptimizedImageUrl(voucher.imageUrl, 1000)}
+                  alt="Voucher"
+                  fill
                   className="object-cover"
                 />
               ) : (
@@ -114,8 +115,8 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
                 </div>
               )}
               <div className="absolute top-4 right-4">
-                <VoucherStatusBadge 
-                  status={voucher.status} 
+                <VoucherStatusBadge
+                  status={voucher.status}
                   expiryDate={voucher.expiryDate}
                   claimRequestedAt={voucher.claimRequestedAt}
                   className="px-3 py-1 rounded-full border-none text-xs font-semibold shadow-lg"
@@ -154,7 +155,7 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
 
             <div className="pt-4">
               {!isInactive && !isRequested && (
-                <Button 
+                <Button
                   className="w-full h-14 text-base font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg"
                   onClick={handleRequestClaim}
                   disabled={isRequesting}
@@ -162,7 +163,7 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
                   {isRequesting ? 'Processing...' : 'Redeem Now'}
                 </Button>
               )}
-              
+
               {isRequested && !isUsed && (
                 <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex gap-4">
                   <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />

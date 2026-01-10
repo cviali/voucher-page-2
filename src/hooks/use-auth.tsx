@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { jwtDecode } from "jwt-decode"
 import { toast } from "sonner"
@@ -34,15 +34,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (showToast === true) {
       toast.error("Session expired. Please login again.")
     }
-    
+
     // Determine which login page to go to based on current path
-    if (pathname.startsWith("/customer")) {
+    const currentPath = window.location.pathname
+    if (currentPath.startsWith("/customer")) {
       router.push("/customer/login")
     } else {
       router.push("/login")
     }
-  }, [pathname, router])
+  }, [router])
 
+  // Initial load: Check if user is already logged in
   useEffect(() => {
     const storedUser = localStorage.getItem("user")
     const token = localStorage.getItem("token")
@@ -54,28 +56,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (decoded.exp < currentTime) {
           logout(true)
-          return
-        }
-
-        const userObj = JSON.parse(storedUser)
-        setUser(userObj)
-        
-        // If user is logged in and tries to access login page, redirect to dashboard/vouchers
-        if (pathname.includes("/login")) {
-          if (userObj.role === 'customer') {
-            router.push("/customer")
-          } else {
-            router.push("/dashboard")
-          }
+        } else {
+          const userObj = JSON.parse(storedUser)
+          // Use functional update to avoid unnecessary re-renders if the user object is deep-equal
+          setUser(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(userObj)) return prev
+            return userObj
+          })
         }
       } catch {
         logout()
       }
+    }
+    setIsLoading(false)
+  }, [logout])
+
+  // Handle redirects on pathname changes
+  useEffect(() => {
+    if (isLoading) return
+
+    const isLoginPage = pathname.includes("/login")
+    const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/customer/vouchers") || pathname === "/customer"
+
+    if (user) {
+      if (isLoginPage) {
+        if (user.role === 'customer') {
+          router.push("/customer")
+        } else {
+          router.push("/dashboard")
+        }
+      }
     } else {
-      // Only redirect if we're trying to access a protected route
-      const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/customer/vouchers") || pathname === "/customer"
-      const isLoginPage = pathname.includes("/login")
-      
       if (isProtectedRoute && !isLoginPage) {
         if (pathname.startsWith("/customer")) {
           router.push(`/customer/login?redirect=${encodeURIComponent(pathname)}`)
@@ -84,14 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-    setIsLoading(false)
-  }, [pathname, router, logout])
+  }, [pathname, user, router, isLoading])
 
-  const login = (token: string, user: User, redirectTo?: string) => {
+  const login = useCallback((token: string, user: User, redirectTo?: string) => {
     localStorage.setItem("token", token)
     localStorage.setItem("user", JSON.stringify(user))
     setUser(user)
-    
+
     if (redirectTo) {
       router.push(redirectTo)
       return
@@ -102,10 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       router.push("/dashboard")
     }
-  }
+  }, [router])
+
+  const value = useMemo(() => ({
+    user,
+    login,
+    logout,
+    isLoading
+  }), [user, login, logout, isLoading])
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   )

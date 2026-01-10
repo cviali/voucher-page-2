@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { formatDate, getOptimizedImageUrl } from "@/lib/utils"
+import { getApiUrl } from "@/lib/api-config"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -37,7 +38,7 @@ export default function CustomerVouchersPage() {
     try {
       const token = localStorage.getItem("token")
       const res = await fetch(
-        `/api/customer/vouchers?phoneNumber=${user?.phoneNumber || user?.username}&page=${pageNum}&limit=4`,
+        getApiUrl(`/customer/vouchers?phoneNumber=${user?.phoneNumber || user?.username}&page=${pageNum}&limit=4`),
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -56,13 +57,13 @@ export default function CustomerVouchersPage() {
           totalPages: number
           page: number
         }
-        
+
         if (isInitial) {
           setVouchers(result.data || [])
         } else {
           setVouchers(prev => [...(prev || []), ...(result.data || [])])
         }
-        
+
         setHasMore(result.page < result.totalPages)
       } else {
         toast.error("Failed to fetch vouchers")
@@ -120,7 +121,7 @@ export default function CustomerVouchersPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: (index % 4) * 0.1 }}
                 >
-                  <Link 
+                  <Link
                     href={isExpired ? "#" : `/customer/vouchers/${voucher.id}`}
                     onClick={(e) => isExpired && e.preventDefault()}
                     className={isExpired ? "cursor-default block" : "block"}
@@ -128,10 +129,10 @@ export default function CustomerVouchersPage() {
                     <Card className={`relative overflow-hidden border shadow-lg transition-all ${!isExpired ? 'active:scale-[0.98]' : ''} p-0 gap-0 group ${isInactive ? 'opacity-75 grayscale-[0.3]' : ''}`}>
                       <div className="relative aspect-video w-full overflow-hidden">
                         {voucher.imageUrl ? (
-                          <Image 
-                            src={getOptimizedImageUrl(voucher.imageUrl, 600)} 
-                            alt={voucher.name || "Voucher"} 
-                            fill 
+                          <Image
+                            src={getOptimizedImageUrl(voucher.imageUrl, 600)}
+                            alt={voucher.name || "Voucher"}
+                            fill
                             className="object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : (
@@ -139,11 +140,11 @@ export default function CustomerVouchersPage() {
                             <Ticket className="w-16 h-16 text-white/10" />
                           </div>
                         )}
-                        
+
                         {/* Status Overlay */}
                         <div className="absolute top-4 right-4 z-10">
-                          <VoucherStatusBadge 
-                            status={voucher.status} 
+                          <VoucherStatusBadge
+                            status={voucher.status}
                             expiryDate={voucher.expiryDate}
                             claimRequestedAt={voucher.claimRequestedAt}
                             className={`px-4 py-1.5 rounded-full border-2 border-white/20 shadow-lg backdrop-blur-md`}
@@ -153,7 +154,7 @@ export default function CustomerVouchersPage() {
                         {/* Bottom Gradient for Name */}
                         <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent" />
                         <div className="absolute bottom-4 left-6 right-6">
-                           <h2 className="text-white font-bold text-xl drop-shadow-md truncate">
+                          <h2 className="text-white font-bold text-xl drop-shadow-md truncate">
                             {voucher.name || "Special Offer"}
                           </h2>
                         </div>
@@ -169,7 +170,7 @@ export default function CustomerVouchersPage() {
                             {voucher.code}
                           </h3>
                         </div>
-                        
+
                         <div className="flex flex-col items-start sm:items-end gap-1">
                           <div className="flex items-center gap-1.5 text-muted-foreground text-sm font-medium">
                             <Clock className="w-4 h-4" />

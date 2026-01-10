@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { getApiUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +21,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetFooter,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import {
@@ -74,7 +74,7 @@ export default function StaffPage() {
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/users?role=cashier&page=${currentPage}&limit=${limit}`, {
+      const res = await fetch(getApiUrl(`/users?role=cashier&page=${currentPage}&limit=${limit}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -107,7 +107,7 @@ export default function StaffPage() {
     setIsAdding(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/users", {
+      const res = await fetch(getApiUrl("/users"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -149,7 +149,7 @@ export default function StaffPage() {
     setIsUpdating(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/users/${selectedStaff.id}`, {
+      const res = await fetch(getApiUrl(`/users/${selectedStaff.id}`), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -184,7 +184,7 @@ export default function StaffPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/users/${selectedStaff.id}`, {
+      const res = await fetch(getApiUrl(`/users/${selectedStaff.id}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -215,88 +215,18 @@ export default function StaffPage() {
             Manage cashier accounts and system access.
           </p>
         </div>
-        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4" />
-              Add Cashier
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="sm:max-w-md">
-            <SheetHeader>
-              <SheetTitle>Add New Cashier</SheetTitle>
-              <SheetDescription>
-                Create a new cashier account for the system.
-              </SheetDescription>
-            </SheetHeader>
-            <form onSubmit={handleAddStaff} className="grid gap-6 px-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  placeholder="John Doe"
-                  required
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  placeholder="johndoe"
-                  required
-                  value={formData.username}
-                  onChange={(e) =>
-                    setFormData({ ...formData, username: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <div className="flex gap-2">
-                  <div className="flex items-center justify-center px-3 rounded-md border bg-muted text-muted-foreground text-sm font-medium">
-                    +62
-                  </div>
-                  <Input
-                    id="phone"
-                    placeholder="8123456789"
-                    required
-                    value={formData.phoneNumber}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phoneNumber: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                />
-              </div>
-              <SheetFooter className="p-0">
-                <Button type="submit" className="w-full" disabled={isAdding}>
-                  {isAdding && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Create Account
-                </Button>
-              </SheetFooter>
-            </form>
-          </SheetContent>
-        </Sheet>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-y-3">
+        <div className="flex justify-end">
+          <Button
+            onClick={() => setIsSheetOpen(true)}
+            disabled={isAdding}
+          >
+            <Plus className="h-4 w-4" />
+            Add Cashier
+          </Button>
+        </div>
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -325,8 +255,8 @@ export default function StaffPage() {
                 </TableRow>
               ) : (
                 staff.map((item) => (
-                  <TableRow 
-                    key={item.id} 
+                  <TableRow
+                    key={item.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleRowClick(item)}
                   >
@@ -383,6 +313,79 @@ export default function StaffPage() {
         </div>
       </div>
 
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Add New Cashier</SheetTitle>
+            <SheetDescription>
+              Create a new cashier account for the system.
+            </SheetDescription>
+          </SheetHeader>
+          <form onSubmit={handleAddStaff} className="grid gap-6 px-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                placeholder="John Doe"
+                required
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                placeholder="johndoe"
+                required
+                value={formData.username}
+                onChange={(e) =>
+                  setFormData({ ...formData, username: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <div className="flex gap-2">
+                <div className="flex items-center justify-center px-3 rounded-md border bg-muted text-muted-foreground text-sm font-medium">
+                  +62
+                </div>
+                <Input
+                  id="phone"
+                  placeholder="8123456789"
+                  required
+                  value={formData.phoneNumber}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phoneNumber: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                required
+                value={formData.password}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
+              />
+            </div>
+            <SheetFooter className="p-0">
+              <Button type="submit" className="w-full" disabled={isAdding}>
+                {isAdding && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Create Account
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
       <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
         <SheetContent className="sm:max-w-md">
           <SheetHeader>
@@ -437,10 +440,10 @@ export default function StaffPage() {
                 )}
                 Update Staff
               </Button>
-              <Button 
-                type="button" 
-                variant="destructive" 
-                className="w-full" 
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
                 onClick={handleDeleteStaff}
                 disabled={isDeleting}
               >

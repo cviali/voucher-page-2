@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
 import { useDebounce } from "@/hooks/use-debounce";
+import { getApiUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -119,7 +120,7 @@ export default function BindPage() {
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(
-          `/api/vouchers?status=${status}&page=${currentPage}&limit=${limit}`,
+          getApiUrl(`/vouchers?status=${status}&page=${currentPage}&limit=${limit}`),
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -158,7 +159,7 @@ export default function BindPage() {
       try {
         const token = localStorage.getItem("token");
         const res = await fetch(
-          `/api/users/search?q=${encodeURIComponent(debouncedSearch)}`,
+          getApiUrl(`/users/search?q=${encodeURIComponent(debouncedSearch)}`),
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -210,7 +211,7 @@ export default function BindPage() {
     setIsBinding(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/vouchers/bind", {
+      const res = await fetch(getApiUrl("/vouchers/bind"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -257,7 +258,7 @@ export default function BindPage() {
     setIsBulkBinding(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/vouchers/bulk-bind", {
+      const res = await fetch(getApiUrl("/vouchers/bulk-bind"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -294,7 +295,7 @@ export default function BindPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/vouchers/${selectedVoucher.id}`, {
+      const res = await fetch(getApiUrl(`/vouchers/${selectedVoucher.id}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -321,9 +322,8 @@ export default function BindPage() {
 
     const phoneNumber = voucher.bindedToPhoneNumber.replace(/\+/g, "");
     const baseUrl = window.location.origin;
-    const message = `Hi ${
-      voucher.customerName || "Customer"
-    }, here is your voucher link: ${baseUrl}/customer/vouchers/${voucher.id}`;
+    const message = `Hi ${voucher.customerName || "Customer"
+      }, here is your voucher link: ${baseUrl}/customer/vouchers/${voucher.id}`;
     const encodedMessage = encodeURIComponent(message);
 
     window.open(
@@ -352,7 +352,7 @@ export default function BindPage() {
         }}
         className="w-full"
       >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <TabsList className="grid w-full max-w-md grid-cols-3">
             <TabsTrigger value="available">Available</TabsTrigger>
             <TabsTrigger value="active">Binded</TabsTrigger>
@@ -363,7 +363,7 @@ export default function BindPage() {
         <TabsContent value="bulk" className="mt-0">
           <div className="max-w-2xl mx-auto space-y-6 bg-card p-6 rounded-xl border shadow-sm">
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
+              <h2 className="text-lg font-semibold flex items-center gap-4">
                 <Users className="h-5 w-5 text-primary" />
                 Bulk Assign Vouchers
               </h2>
@@ -675,12 +675,8 @@ export default function BindPage() {
                               )}
                             </div>
                             <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold uppercase tracking-wider text-foreground">
-                                {voucher.code}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground leading-tight">
-                                {voucher.name || "Unnamed Voucher"}
-                              </span>
+                              <span className="text-sm font-bold uppercase tracking-wider text-foreground">{voucher.code}</span>
+                              <span className="text-[10px] text-muted-foreground leading-tight">{voucher.name || "Unnamed Voucher"}</span>
                             </div>
                           </div>
                         </TableCell>
@@ -917,7 +913,10 @@ export default function BindPage() {
                           className="w-full px-4 py-3 text-left hover:bg-muted transition-colors flex flex-col gap-0.5"
                           onClick={() => setSelectedUser(u)}
                         >
-                          <span className="text-sm font-medium">{u.name}</span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{u.name}</span>
+                            <span className="text-sm font-medium">Customer ID: {u.id}</span>
+                          </div>
                           <span className="text-xs text-muted-foreground">
                             {u.phoneNumber}
                           </span>

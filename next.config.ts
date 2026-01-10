@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
 	/* config options here */
 	images: {
 		unoptimized: true,
+		localPatterns: [
+			{
+				pathname: "/api/vouchers/image/**",
+			},
+		],
 	},
 };
 

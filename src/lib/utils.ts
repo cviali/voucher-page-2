@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { getApiUrl } from "./api-config"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -35,16 +36,17 @@ export function formatIDR(amount: number | null | undefined) {
   }).format(amount)
 }
 
-export function getOptimizedImageUrl(url: string | null | undefined, width?: number, quality: number = 75) {
+export function getOptimizedImageUrl(url: string | null | undefined, width?: number) {
   if (!url) return ''
-  if (!width) return url
-  
-  // If the image is from our own API, we can append resizing parameters
+
+  // If the image is from our own API, we don't need to append resizing parameters
+  // as the current backend doesn't support them and it triggers Next.js 15 warnings
   if (url.includes('/vouchers/image/')) {
-    const separator = url.includes('?') ? '&' : '?'
-    return `${url}${separator}w=${width}&q=${quality}`
+    return getApiUrl(url)
   }
-  
+
+  if (!width) return url
+
   return url
 }
 
@@ -98,11 +100,11 @@ export async function resizeImage(file: File, maxWidth: number = 1200, maxHeight
 export const VOUCHER_STATUS_COLORS = {
   claimed: "bg-zinc-800 text-white hover:bg-zinc-900 border-transparent font-bold uppercase",
   redeemed: "bg-zinc-800 text-white hover:bg-zinc-900 border-transparent font-bold uppercase",
-  expired: "bg-red-600 text-white hover:bg-red-700 border-transparent font-bold uppercase",
-  pending: "bg-amber-500 text-white hover:bg-amber-600 border-transparent font-bold uppercase",
-  requested: "bg-amber-500 text-white hover:bg-amber-600 border-transparent font-bold uppercase",
-  active: "bg-emerald-600 text-white hover:bg-emerald-700 border-transparent font-bold uppercase",
-  available: "bg-zinc-400 text-white hover:bg-zinc-500 border-transparent font-bold uppercase",
+  expired: "bg-red-600 dark:bg-red-700/80 text-white hover:bg-red-700 dark:hover:bg-red-700 border-transparent font-bold uppercase",
+  pending: "bg-amber-500 dark:bg-amber-600/80 text-white hover:bg-amber-600 dark:hover:bg-amber-600 border-transparent font-bold uppercase",
+  requested: "bg-amber-500 dark:bg-amber-600/80 text-white hover:bg-amber-600 dark:hover:bg-amber-600 border-transparent font-bold uppercase",
+  active: "bg-emerald-600 dark:bg-emerald-700/80 text-white hover:bg-emerald-700 dark:hover:bg-emerald-700 border-transparent font-bold uppercase",
+  available: "bg-zinc-400 dark:bg-zinc-500/80 text-white hover:bg-zinc-500 dark:hover:bg-zinc-500 border-transparent font-bold uppercase",
 } as const;
 
 export type VoucherStatus = keyof typeof VOUCHER_STATUS_COLORS;

@@ -74,6 +74,7 @@ export function ChartAreaInteractive({ data = [] }: { data?: ChartDataPoint[] })
       }
       const startDate = new Date(now)
       startDate.setDate(startDate.getDate() - daysToSubtract)
+      startDate.setHours(0, 0, 0, 0)
       return date >= startDate
     })
   }, [data, timeRange])

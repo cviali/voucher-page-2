@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
+import { getApiUrl } from "@/lib/api-config"
 
 function CustomerLoginForm() {
   const [phoneNumber, setPhoneNumber] = useState("")
@@ -22,7 +23,7 @@ function CustomerLoginForm() {
     e.preventDefault()
     setError("")
     setIsLoading(true)
-    
+
     // Convert DD/MM/YYYY to YYYY-MM-DD for backend
     let formattedDob = dob
     if (dob.includes('/')) {
@@ -33,14 +34,14 @@ function CustomerLoginForm() {
     }
 
     try {
-      const res = await fetch('/api/auth/customer/login', {
+      const res = await fetch(getApiUrl('/auth/customer/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber, dateOfBirth: formattedDob })
       })
-      
+
       const data = await res.json() as { token: string; user: { username: string; phoneNumber: string; role: 'admin' | 'cashier' | 'customer'; name: string }; error?: string }
-      
+
       if (res.ok) {
         login(data.token, data.user, redirect || undefined)
       } else {
@@ -69,20 +70,20 @@ function CustomerLoginForm() {
                 <div className="flex items-center justify-center px-3 rounded-md border bg-muted text-muted-foreground text-sm font-medium">
                   +62
                 </div>
-                <Input 
-                  id="phone" 
-                  placeholder="85812345678" 
+                <Input
+                  id="phone"
+                  placeholder="85812345678"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  required 
+                  required
                   className="h-11"
                 />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="dob">Date of Birth</Label>
-              <Input 
-                id="dob" 
+              <Input
+                id="dob"
                 placeholder="DD/MM/YYYY"
                 value={dob}
                 onChange={(e) => {
@@ -94,7 +95,7 @@ function CustomerLoginForm() {
                   }
                   setDob(val)
                 }}
-                required 
+                required
                 className="h-11"
               />
             </div>

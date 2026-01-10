@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
 import { getOptimizedImageUrl } from "@/lib/utils";
+import { getApiUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -25,14 +26,14 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { 
-  Loader2, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight, 
-  Trash2, 
-  Calendar, 
-  User, 
+import {
+  Loader2,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  Calendar,
+  User,
   Phone,
   Upload,
   Image as ImageIcon,
@@ -71,6 +72,8 @@ interface Voucher {
   imageUrl: string | null;
   description: string | null;
   claimRequestedAt: string | null;
+  customerName?: string;
+  customerId?: number;
 }
 
 interface Template {
@@ -109,12 +112,13 @@ export default function VouchersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
+    if (!searchTerm && !debouncedSearch) return; // Skip on mount or empty
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setPage(1); // Reset to first page on search
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, debouncedSearch]);
 
   const fetchVouchers = useCallback(async (currentPage: number) => {
     setIsLoading(true);
@@ -123,7 +127,7 @@ export default function VouchersPage() {
       const statusParam = statusFilter !== "all" ? `&status=${statusFilter}` : "";
       const searchParam = debouncedSearch ? `&search=${debouncedSearch}` : "";
       const res = await fetch(
-        `/api/vouchers?page=${currentPage}&limit=${limit}${statusParam}${searchParam}`,
+        getApiUrl(`/vouchers?page=${currentPage}&limit=${limit}${statusParam}${searchParam}`),
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -156,7 +160,7 @@ export default function VouchersPage() {
   const fetchTemplates = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/templates", {
+      const res = await fetch(getApiUrl("/templates"), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -196,11 +200,11 @@ export default function VouchersPage() {
       if (batchImageFile) {
         const resizedBlob = await resizeImage(batchImageFile, 1200, 1200);
         const resizedFile = new File([resizedBlob], "batch-image.jpg", { type: 'image/jpeg' });
-        
+
         const formData = new FormData();
         formData.append("file", resizedFile);
 
-        const uploadRes = await fetch("/api/vouchers/upload", {
+        const uploadRes = await fetch(getApiUrl("/vouchers/upload"), {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -220,7 +224,7 @@ export default function VouchersPage() {
 
       // If user checked "Save as Template", do it now
       if (saveAsTemplate) {
-        await fetch("/api/templates", {
+        await fetch(getApiUrl("/templates"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -235,7 +239,7 @@ export default function VouchersPage() {
         fetchTemplates();
       }
 
-      const res = await fetch("/api/vouchers/batch", {
+      const res = await fetch(getApiUrl("/vouchers/batch"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -276,7 +280,7 @@ export default function VouchersPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/vouchers/${selectedVoucher.id}`, {
+      const res = await fetch(getApiUrl(`/vouchers/${selectedVoucher.id}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -303,7 +307,7 @@ export default function VouchersPage() {
     setIsUpdating(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/vouchers/${selectedVoucher.id}`, {
+      const res = await fetch(getApiUrl(`/vouchers/${selectedVoucher.id}`), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -341,7 +345,7 @@ export default function VouchersPage() {
       formData.append("file", resizedFile);
 
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/vouchers/upload", {
+      const res = await fetch(getApiUrl("/vouchers/upload"), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -388,12 +392,12 @@ export default function VouchersPage() {
                   <AccordionContent className="pt-4 pb-0">
                     <div className="grid gap-4">
                       <div className="grid gap-2">
-                        <Label htmlFor="search-mobile" className="text-xs font-bold uppercase text-muted-foreground">Search Code/Name</Label>
+                        <Label htmlFor="search-mobile" className="text-xs font-bold uppercase text-muted-foreground">Search</Label>
                         <div className="relative">
                           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                           <Input
                             id="search-mobile"
-                            placeholder="Search..."
+                            placeholder="Code, name, or phone..."
                             className="pl-8 bg-background"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -403,7 +407,7 @@ export default function VouchersPage() {
                       <div className="grid gap-2">
                         <Label className="text-xs font-bold uppercase text-muted-foreground">Status</Label>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full bg-background">
+                          <SelectTrigger className="w-full bg-background">
                             <SelectValue placeholder="Status" />
                           </SelectTrigger>
                           <SelectContent>
@@ -429,7 +433,7 @@ export default function VouchersPage() {
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="search-desktop"
-                    placeholder="Search by code or name..."
+                    placeholder="Code, name, or phone..."
                     className="pl-8 bg-background"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -455,9 +459,9 @@ export default function VouchersPage() {
           </div>
 
           <div className="flex gap-2">
-            <Button 
+            <Button
               className="w-full md:w-auto"
-              onClick={() => setIsBatchSheetOpen(true)} 
+              onClick={() => setIsBatchSheetOpen(true)}
               disabled={isGenerating}
             >
               <Plus className="h-4 w-4" />
@@ -498,7 +502,7 @@ export default function VouchersPage() {
                     </TableRow>
                   ) : (
                     vouchers.map((voucher) => (
-                      <TableRow 
+                      <TableRow
                         key={voucher.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => handleRowClick(voucher)}
@@ -506,23 +510,23 @@ export default function VouchersPage() {
                         <TableCell className="font-mono font-medium pl-6">
                           <div className="flex items-center gap-3">
                             {voucher.imageUrl && (
-                              <Image 
-                                src={getOptimizedImageUrl(voucher.imageUrl, 80)} 
-                                alt="Voucher" 
+                              <Image
+                                src={getOptimizedImageUrl(voucher.imageUrl, 80)}
+                                alt="Voucher"
                                 width={40}
                                 height={40}
                                 className="w-10 h-10 rounded-md object-cover border shadow-sm"
                               />
                             )}
                             <div className="flex flex-col">
-                              <span className="font-bold text-sm text-foreground">{voucher.name || 'Unnamed Voucher'}</span>
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{voucher.code}</span>
+                              <span className="text-sm font-bold uppercase tracking-wider text-foreground">{voucher.code}</span>
+                              <span className="text-[10px] text-muted-foreground leading-tight">{voucher.name || "Unnamed Voucher"}</span>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <VoucherStatusBadge 
-                            status={voucher.status} 
+                          <VoucherStatusBadge
+                            status={voucher.status}
                             expiryDate={voucher.expiryDate}
                             claimRequestedAt={voucher.claimRequestedAt}
                             className="text-[10px]"
@@ -656,11 +660,11 @@ export default function VouchersPage() {
                     )}
                   </Label>
                 )}
-                <input 
-                  id="image-upload" 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
                   onChange={handleImageUpload}
                   disabled={isUploading}
                 />
@@ -673,7 +677,7 @@ export default function VouchersPage() {
               </Label>
               <Textarea
                 placeholder="Enter voucher description..."
-                className="min-h-[100px] resize-none"
+                className="min-h-[150px] resize-none"
                 defaultValue={selectedVoucher?.description || ""}
                 onBlur={(e) => {
                   if (e.target.value !== selectedVoucher?.description) {
@@ -705,8 +709,8 @@ export default function VouchersPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>
                   {selectedVoucher && (
-                    <VoucherStatusBadge 
-                      status={selectedVoucher.status} 
+                    <VoucherStatusBadge
+                      status={selectedVoucher.status}
                       expiryDate={selectedVoucher.expiryDate}
                       claimRequestedAt={selectedVoucher.claimRequestedAt}
                     />
@@ -741,11 +745,19 @@ export default function VouchersPage() {
                     <User className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold">
+                        {selectedVoucher.customerName || "Customer"}
+                      </p>
+                      {selectedVoucher.customerId && (
+                        <span className="text-[10px] font-mono font-bold text-muted-foreground bg-muted px-1.5 rounded">
+                          #{selectedVoucher.customerId}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <Phone className="h-3 w-3" />
                       {selectedVoucher.bindedToPhoneNumber}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Phone className="h-3 w-3" /> Customer
                     </p>
                   </div>
                 </div>
@@ -867,16 +879,16 @@ export default function VouchersPage() {
 
             <div className="space-y-2">
               <Label htmlFor="batch-image">Voucher Image</Label>
-              <div 
+              <div
                 className="relative aspect-video w-full rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors overflow-hidden group"
                 onClick={() => document.getElementById('batch-image-upload')?.click()}
               >
                 {batchImageFile || batchForm.imageUrl ? (
                   <>
-                    <Image 
-                      src={batchImageFile ? URL.createObjectURL(batchImageFile) : batchForm.imageUrl} 
-                      alt="Preview" 
-                      fill 
+                    <Image
+                      src={batchImageFile ? URL.createObjectURL(batchImageFile) : batchForm.imageUrl}
+                      alt="Preview"
+                      fill
                       className="object-cover transition-opacity group-hover:opacity-40"
                     />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -892,11 +904,11 @@ export default function VouchersPage() {
                     </p>
                   </>
                 )}
-                <input 
+                <input
                   id="batch-image-upload"
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null;
                     setBatchImageFile(file);
@@ -905,9 +917,9 @@ export default function VouchersPage() {
                 />
               </div>
               {(batchImageFile || batchForm.imageUrl) && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="w-full text-[10px] h-6 mt-1 text-destructive"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -925,19 +937,19 @@ export default function VouchersPage() {
               <Textarea
                 id="batch-description"
                 placeholder="Enter terms and conditions (one per line)"
-                className="min-h-[100px]"
+                className="min-h-[150px]"
                 value={batchForm.description}
                 onChange={(e) => setBatchForm({ ...batchForm, description: e.target.value })}
               />
             </div>
 
             <div className="flex items-center space-x-2 pt-2 border-t">
-              <Checkbox 
-                id="save-template" 
+              <Checkbox
+                id="save-template"
                 checked={saveAsTemplate}
                 onCheckedChange={(checked) => setSaveAsTemplate(!!checked)}
               />
-              <label 
+              <label
                 htmlFor="save-template"
                 className="text-xs font-medium leading-none cursor-pointer flex items-center gap-1.5"
               >

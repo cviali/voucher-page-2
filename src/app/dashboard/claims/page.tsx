@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
+import { getApiUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -15,12 +15,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -38,7 +38,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { formatDate, VOUCHER_STATUS_COLORS } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { VoucherClaimDrawer } from "@/components/voucher-claim-drawer";
 import { VoucherStatusBadge } from "@/components/voucher-status-badge";
 
@@ -84,7 +84,7 @@ export default function ClaimsPage() {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        `/api/vouchers?requested=true&limit=100`,
+        getApiUrl(`/vouchers?requested=true&limit=100`),
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -109,7 +109,7 @@ export default function ClaimsPage() {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        `/api/vouchers?status=active&page=${currentPage}&limit=${limit}&search=${debouncedSearch}`,
+        getApiUrl(`/vouchers?status=active&page=${currentPage}&limit=${limit}&search=${debouncedSearch}`),
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -161,7 +161,7 @@ export default function ClaimsPage() {
       <div className="space-y-3">
 
         {/* Requested Vouchers Section */}
-        <div className="space-y-4 pt-4">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               Redeem Requests
@@ -171,17 +171,17 @@ export default function ClaimsPage() {
                 </Badge>
               )}
             </h2>
-            <Button 
+            <Button
               variant="outline"
               className="w-full md:w-auto"
-              onClick={fetchRequestedVouchers} 
+              onClick={fetchRequestedVouchers}
               disabled={isRequestedLoading}
             >
               {isRequestedLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ListFilter className="h-4 w-4 mr-2" />}
               Refresh Requests
             </Button>
           </div>
-          
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {requestedVouchers.length === 0 ? (
               <div className="col-span-full py-8 text-center border rounded-xl bg-muted/20 text-muted-foreground text-sm">
@@ -189,9 +189,9 @@ export default function ClaimsPage() {
               </div>
             ) : (
               requestedVouchers.map((voucher) => (
-                <Card 
-                  key={voucher.id} 
-                  className="p-4 cursor-pointer hover:border-primary/50 transition-colors border-2 border-amber-100 bg-amber-50/30"
+                <div
+                  key={voucher.id}
+                  className="p-4 cursor-pointer hover:border-amber-500/50 transition-all border-2 border-amber-100 bg-amber-50/30 dark:bg-amber-950/20 dark:border-amber-900/50 active:scale-95 rounded-xl"
                   onClick={() => handleRowClick(voucher)}
                 >
                   <div className="flex items-start gap-3">
@@ -204,7 +204,7 @@ export default function ClaimsPage() {
                         className="w-10 h-10 rounded-lg object-cover border bg-white shadow-xs"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-zinc-200 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-lg bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
                         <Ticket className="w-5 h-5 text-zinc-400" />
                       </div>
                     )}
@@ -213,9 +213,9 @@ export default function ClaimsPage() {
                       <p className="font-medium text-xs truncate leading-tight mt-0.5">{voucher.customerName || "Unknown"}</p>
                       <p className="text-[10px] text-muted-foreground truncate">{voucher.bindedToPhoneNumber}</p>
                     </div>
-                    <Badge className={VOUCHER_STATUS_COLORS.requested + " text-[9px] px-1.5 h-5 shadow-sm"}>NEW</Badge>
+                    <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[9px] px-1.5 h-5 shadow-sm">NEW</Badge>
                   </div>
-                </Card>
+                </div>
               ))
             )}
           </div>
@@ -323,8 +323,8 @@ export default function ClaimsPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <VoucherStatusBadge 
-                              status={voucher.status} 
+                            <VoucherStatusBadge
+                              status={voucher.status}
                               expiryDate={voucher.expiryDate}
                               claimRequestedAt={voucher.claimRequestedAt}
                               className="text-[10px]"
