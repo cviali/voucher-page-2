@@ -62,7 +62,7 @@ import {
   Link,
   Calendar,
 } from "lucide-react";
-import { formatDate, VOUCHER_STATUS_COLORS } from "@/lib/utils";
+import { formatDate, VOUCHER_STATUS_COLORS, getOptimizedImageUrl } from "@/lib/utils";
 
 interface Voucher {
   id: string;
@@ -497,7 +497,7 @@ export default function BindPage() {
                           <div className="relative h-12 w-12 rounded-md overflow-hidden border bg-muted shrink-0 shadow-sm">
                             {voucher.imageUrl ? (
                               <Image
-                                src={voucher.imageUrl}
+                                src={getOptimizedImageUrl(voucher.imageUrl)}
                                 alt=""
                                 fill
                                 className="object-cover"
@@ -660,7 +660,7 @@ export default function BindPage() {
                             <div className="relative h-10 w-10 rounded-md overflow-hidden border bg-muted shrink-0 shadow-sm group-hover:scale-105 transition-transform">
                               {voucher.imageUrl ? (
                                 <Image
-                                  src={voucher.imageUrl}
+                                  src={getOptimizedImageUrl(voucher.imageUrl)}
                                   alt=""
                                   fill
                                   className="object-cover"
@@ -817,7 +817,7 @@ export default function BindPage() {
                 {selectedVoucher?.imageUrl && (
                   <div className="pt-2">
                     <Image
-                      src={selectedVoucher.imageUrl}
+                      src={getOptimizedImageUrl(selectedVoucher.imageUrl)}
                       alt="Voucher"
                       width={400}
                       height={128}

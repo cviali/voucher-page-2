@@ -38,7 +38,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getOptimizedImageUrl } from "@/lib/utils";
 import { VoucherClaimDrawer } from "@/components/voucher-claim-drawer";
 import { VoucherStatusBadge } from "@/components/voucher-status-badge";
 
@@ -195,7 +195,7 @@ export default function ClaimsPage() {
                   <div className="flex items-start gap-3">
                     {voucher.imageUrl ? (
                       <Image
-                        src={voucher.imageUrl}
+                        src={getOptimizedImageUrl(voucher.imageUrl)}
                         alt=""
                         width={40}
                         height={40}
@@ -303,7 +303,7 @@ export default function ClaimsPage() {
                             <div className="flex items-center gap-3">
                               {voucher.imageUrl ? (
                                 <Image
-                                  src={voucher.imageUrl}
+                                  src={getOptimizedImageUrl(voucher.imageUrl)}
                                   alt=""
                                   width={40}
                                   height={40}

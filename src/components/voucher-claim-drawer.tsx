@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { getApiUrl } from "@/lib/api-config";
+import { getOptimizedImageUrl } from "@/lib/utils";
 import {
   Loader2,
   User,
@@ -158,7 +159,7 @@ export function VoucherClaimDrawer({
                 <div className="pt-2">
                   <div className="relative aspect-video w-full rounded-lg overflow-hidden border bg-background shadow-xs">
                     <Image
-                      src={voucher.imageUrl}
+                      src={getOptimizedImageUrl(voucher.imageUrl)}
                       alt="Voucher"
                       fill
                       className="object-cover"

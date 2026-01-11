@@ -4,9 +4,11 @@ const nextConfig: NextConfig = {
 	/* config options here */
 	images: {
 		unoptimized: true,
-		localPatterns: [
+		remotePatterns: [
 			{
-				pathname: "/api/vouchers/image/**",
+				protocol: "https",
+				hostname: "tch-api.vlocityarena.com",
+				pathname: "/vouchers/image/**",
 			},
 		],
 	},

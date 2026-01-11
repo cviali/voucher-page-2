@@ -668,7 +668,7 @@ export default function VouchersPage() {
                 {selectedVoucher?.imageUrl ? (
                   <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-muted">
                     <Image
-                      src={selectedVoucher.imageUrl}
+                      src={getOptimizedImageUrl(selectedVoucher.imageUrl)}
                       alt="Voucher"
                       fill
                       className="object-cover"
@@ -917,7 +917,7 @@ export default function VouchersPage() {
                 {batchImageFile || batchForm.imageUrl ? (
                   <>
                     <Image
-                      src={batchImageFile ? URL.createObjectURL(batchImageFile) : batchForm.imageUrl}
+                      src={batchImageFile ? URL.createObjectURL(batchImageFile) : getOptimizedImageUrl(batchForm.imageUrl)}
                       alt="Preview"
                       fill
                       className="object-cover transition-opacity group-hover:opacity-40"

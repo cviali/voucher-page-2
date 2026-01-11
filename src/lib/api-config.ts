@@ -10,8 +10,11 @@ export const getApiUrl = (path: string) => {
     // Use API_BASE_URL if available
     const cleanBase = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
 
-    // Remove /api prefix if it exists in the path, as we're moving away from middleware
-    const finalPath = cleanPath.startsWith('/api/') ? cleanPath.slice(4) : cleanPath;
+    // Remove /api prefix if it exists in the path, as we're moving away from the old proxy
+    let finalPath = cleanPath;
+    if (finalPath.startsWith('/api/')) {
+        finalPath = finalPath.slice(4);
+    }
 
     return `${cleanBase}${finalPath}`;
 };

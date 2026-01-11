@@ -21,6 +21,7 @@ import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 
 import { getApiUrl } from "@/lib/api-config";
+import { getOptimizedImageUrl } from "@/lib/utils";
 
 interface Voucher {
   id: string;
@@ -179,7 +180,7 @@ export default function Page() {
                 <div className="flex items-start gap-3">
                   {voucher.imageUrl ? (
                     <Image
-                      src={voucher.imageUrl}
+                      src={getOptimizedImageUrl(voucher.imageUrl)}
                       alt=""
                       width={40}
                       height={40}
