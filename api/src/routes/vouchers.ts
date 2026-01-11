@@ -56,6 +56,7 @@ voucherRoutes.get('/', async (c) => {
         const limit = parseInt(c.req.query('limit') || '10')
         const status = c.req.query('status')
         const search = c.req.query('search')
+        const phoneNumber = c.req.query('phoneNumber')
         const requested = c.req.query('requested') === 'true'
         const offset = (page - 1) * limit
         const now = new Date()
@@ -88,6 +89,10 @@ voucherRoutes.get('/', async (c) => {
                 like(vouchers.code, `%${search}%`),
                 like(vouchers.name, `%${search}%`)
             ) as any)
+        }
+
+        if (phoneNumber) {
+            conditions.push(like(vouchers.bindedToPhoneNumber, `%${phoneNumber}%`) as any)
         }
 
         const data = await db.select({

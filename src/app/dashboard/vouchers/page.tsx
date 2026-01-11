@@ -109,16 +109,25 @@ export default function VouchersPage() {
   const [limit, setLimit] = useState(30);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchPhone, setSearchPhone] = useState("");
+  const [debouncedSearchPhone, setDebouncedSearchPhone] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    if (!searchTerm && !debouncedSearch) return; // Skip on mount or empty
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       setPage(1); // Reset to first page on search
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm, debouncedSearch]);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchPhone(searchPhone);
+      setPage(1); // Reset to first page on search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchPhone]);
 
   const fetchVouchers = useCallback(async (currentPage: number) => {
     setIsLoading(true);
@@ -126,8 +135,9 @@ export default function VouchersPage() {
       const token = localStorage.getItem("token");
       const statusParam = statusFilter !== "all" ? `&status=${statusFilter}` : "";
       const searchParam = debouncedSearch ? `&search=${debouncedSearch}` : "";
+      const phoneParam = debouncedSearchPhone ? `&phoneNumber=${debouncedSearchPhone}` : "";
       const res = await fetch(
-        getApiUrl(`/vouchers?page=${currentPage}&limit=${limit}${statusParam}${searchParam}`),
+        getApiUrl(`/vouchers?page=${currentPage}&limit=${limit}${statusParam}${searchParam}${phoneParam}`),
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -155,7 +165,7 @@ export default function VouchersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [logout, statusFilter, debouncedSearch, limit]);
+  }, [logout, statusFilter, debouncedSearch, debouncedSearchPhone, limit]);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -392,15 +402,28 @@ export default function VouchersPage() {
                   <AccordionContent className="pt-4 pb-0">
                     <div className="grid gap-4">
                       <div className="grid gap-2">
-                        <Label htmlFor="search-mobile" className="text-xs font-bold uppercase text-muted-foreground">Search</Label>
+                        <Label htmlFor="search-mobile" className="text-xs font-bold uppercase text-muted-foreground">Search Code/Name</Label>
                         <div className="relative">
                           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                           <Input
                             id="search-mobile"
-                            placeholder="Code, name, or phone..."
+                            placeholder="Code or name..."
                             className="pl-8 bg-background"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="search-phone-mobile" className="text-xs font-bold uppercase text-muted-foreground">Search Phone</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="search-phone-mobile"
+                            placeholder="Phone number..."
+                            className="pl-8 bg-background"
+                            value={searchPhone}
+                            onChange={(e) => setSearchPhone(e.target.value)}
                           />
                         </div>
                       </div>
@@ -428,15 +451,28 @@ export default function VouchersPage() {
             {/* Desktop/Tablet Filters */}
             <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="search-desktop" className="text-[10px] font-bold uppercase text-muted-foreground px-1">Search</Label>
+                <Label htmlFor="search-desktop" className="text-[10px] font-bold uppercase text-muted-foreground px-1">Search Code/Name</Label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="search-desktop"
-                    placeholder="Code, name, or phone..."
+                    placeholder="Code or name..."
                     className="pl-8 bg-background"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="search-phone-desktop" className="text-[10px] font-bold uppercase text-muted-foreground px-1">Search Phone</Label>
+                <div className="relative">
+                  <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="search-phone-desktop"
+                    placeholder="Phone number..."
+                    className="pl-8 bg-background"
+                    value={searchPhone}
+                    onChange={(e) => setSearchPhone(e.target.value)}
                   />
                 </div>
               </div>
