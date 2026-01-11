@@ -7,9 +7,9 @@ import { ChevronLeft } from "lucide-react"
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  
+
   // Don't show navbar on login page
-  if (pathname === "/customer/login") {
+  if (pathname === "/login") {
     return <>{children}</>
   }
 

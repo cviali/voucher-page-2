@@ -182,19 +182,14 @@ export default function VouchersPage() {
   }, []);
 
   useEffect(() => {
-    if (user && (user.role === "admin" || user.role === "cashier")) {
-      fetchVouchers(page);
-    }
-  }, [user, page, fetchVouchers]);
+    fetchVouchers(page);
+  }, [page, fetchVouchers]);
 
   useEffect(() => {
-    if (user && (user.role === "admin" || user.role === "cashier")) {
-      fetchTemplates();
-    }
-  }, [user, fetchTemplates]);
+    fetchTemplates();
+  }, [fetchTemplates]);
 
-  if (authLoading) return null;
-  if (!user || (user.role !== "admin" && user.role !== "cashier")) return null;
+  if (authLoading || !user) return null;
 
   const handleBatchCreate = async () => {
     if (!batchForm.name) {

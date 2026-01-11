@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Loader2, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 interface AuditLog {
@@ -70,10 +70,8 @@ export default function AuditLogPage() {
   }, [limit]);
 
   useEffect(() => {
-    if (user && user.role === "admin") {
-      fetchLogs(page);
-    }
-  }, [user, page, fetchLogs]);
+    fetchLogs(page);
+  }, [page, fetchLogs]);
 
   const formatDateTime = (dateStr: string) => {
     return new Intl.DateTimeFormat("en-GB", {
@@ -86,19 +84,7 @@ export default function AuditLogPage() {
     }).format(new Date(dateStr));
   };
 
-  if (authLoading) return null;
-
-  if (!user || user.role !== "admin") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <div className="bg-destructive/10 p-4 rounded-full mb-4">
-          <ShieldAlert className="h-12 w-12 text-destructive" />
-        </div>
-        <h1 className="text-2xl font-bold">Access Denied</h1>
-        <p className="text-muted-foreground mt-2">Only administrators can view system audit logs.</p>
-      </div>
-    );
-  }
+  if (authLoading || !user) return null;
 
   return (
     <div className="flex flex-col gap-8 p-4 md:p-8">

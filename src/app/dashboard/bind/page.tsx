@@ -144,10 +144,8 @@ export default function BindPage() {
   );
 
   useEffect(() => {
-    if (user && (user.role === "cashier" || user.role === "admin")) {
-      fetchVouchers(page, activeTab);
-    }
-  }, [user, page, activeTab, fetchVouchers]);
+    fetchVouchers(page, activeTab);
+  }, [page, activeTab, fetchVouchers]);
 
   useEffect(() => {
     const searchUsers = async () => {
@@ -177,8 +175,7 @@ export default function BindPage() {
     searchUsers();
   }, [debouncedSearch]);
 
-  if (authLoading) return null;
-  if (!user || (user.role !== "cashier" && user.role !== "admin")) return null;
+  if (authLoading || !user) return null;
 
   const formatToApiDate = (date: string) => {
     if (!date || !date.includes("/")) return date;

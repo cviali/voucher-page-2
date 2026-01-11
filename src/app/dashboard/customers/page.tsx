@@ -129,13 +129,10 @@ export default function CustomersPage() {
   );
 
   useEffect(() => {
-    if (user && (user.role === "cashier" || user.role === "admin")) {
-      fetchCustomers(page);
-    }
-  }, [user, page, fetchCustomers]);
+    fetchCustomers(page);
+  }, [page, fetchCustomers]);
 
-  if (authLoading) return null;
-  if (!user || (user.role !== "cashier" && user.role !== "admin")) return null;
+  if (authLoading || !user) return null;
 
   const formatToApiDate = (date: string) => {
     if (!date || !date.includes("/")) return date;

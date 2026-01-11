@@ -19,7 +19,7 @@ router.get('/', async (c) => {
 
 router.post('/', async (c) => {
     const user = c.get('user')
-    if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+    if (user.role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
     const db = getDb(c.env.DB); const body = await c.req.json()
     const res = await db.insert(templates).values({ name: body.name, description: body.description, imageUrl: body.imageUrl }).returning()
     return c.json(res[0])
@@ -27,7 +27,7 @@ router.post('/', async (c) => {
 
 router.delete('/:id', async (c) => {
     const user = c.get('user')
-    if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+    if (user.role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
     const db = getDb(c.env.DB); const id = parseInt(c.req.param('id'))
     await db.delete(templates).where(eq(templates.id, id))
     return c.json({ success: true })

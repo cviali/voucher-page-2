@@ -94,13 +94,10 @@ export default function StaffPage() {
   };
 
   useEffect(() => {
-    if (user && user.role === "admin") {
-      fetchStaff(page);
-    }
-  }, [user, page]);
+    fetchStaff(page);
+  }, [page]);
 
-  if (authLoading) return null;
-  if (!user || user.role !== "admin") return null;
+  if (authLoading || !user) return null;
 
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();

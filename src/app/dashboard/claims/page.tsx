@@ -131,16 +131,14 @@ export default function ClaimsPage() {
   }, [limit, debouncedSearch]);
 
   useEffect(() => {
-    if (user && (user.role === "cashier" || user.role === "admin")) {
-      fetchRequestedVouchers();
-    }
-  }, [user, fetchRequestedVouchers]);
+    fetchRequestedVouchers();
+  }, [fetchRequestedVouchers]);
 
   useEffect(() => {
-    if (user && (user.role === "cashier" || user.role === "admin")) {
-      fetchActiveVouchers(page);
-    }
-  }, [user, page, limit, debouncedSearch, fetchActiveVouchers]);
+    fetchActiveVouchers(page);
+  }, [page, limit, debouncedSearch, fetchActiveVouchers]);
+
+  if (!user) return null;
 
   const handleRowClick = (voucher: Voucher) => {
     setSelectedVoucher(voucher);

@@ -59,7 +59,7 @@ voucherRoutes.get('/', async (c) => {
         const phoneNumber = c.req.query('phoneNumber')
         const requested = c.req.query('requested') === 'true'
         const offset = (page - 1) * limit
-        const now = new Date()
+        const nowEpoch = Math.floor(Date.now() / 1000)
 
         const conditions = [isNull(vouchers.deletedAt)]
         if (status && status !== 'all') {
@@ -67,12 +67,12 @@ voucherRoutes.get('/', async (c) => {
                 conditions.push(and(
                     eq(vouchers.status, 'active'),
                     isNotNull(vouchers.expiryDate),
-                    lt(vouchers.expiryDate, now)
+                    lt(vouchers.expiryDate, sql`${nowEpoch} - 86400`)
                 ) as any)
             } else if (status === 'active') {
                 conditions.push(and(
                     eq(vouchers.status, 'active'),
-                    or(isNull(vouchers.expiryDate), gt(vouchers.expiryDate, now))
+                    or(isNull(vouchers.expiryDate), gt(vouchers.expiryDate, sql`${nowEpoch} - 86400`))
                 ) as any)
             } else {
                 const statusList = status.split(',')
@@ -118,12 +118,13 @@ voucherRoutes.get('/', async (c) => {
             .offset(offset)
             .orderBy(
                 asc(sql`CASE 
-          WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR ${vouchers.expiryDate} > ${now.getTime()}) THEN 1
-          WHEN ${vouchers.status} = 'available' THEN 2
-          WHEN ${vouchers.status} = 'claimed' THEN 3
-          WHEN ${vouchers.status} = 'active' AND ${vouchers.expiryDate} <= ${now.getTime()} THEN 4
-          ELSE 5
-        END`),
+                    WHEN ${vouchers.status} = 'available' THEN 1
+                    WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR (${vouchers.expiryDate} + 86400) > ${nowEpoch}) THEN 2
+                    WHEN ${vouchers.status} = 'claimed' THEN 3
+                    WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} + 86400) <= ${nowEpoch} THEN 4
+                    ELSE 5
+                END`),
+                desc(vouchers.claimRequestedAt),
                 desc(vouchers.createdAt)
             )
 
@@ -371,7 +372,7 @@ voucherRoutes.post('/claim', async (c) => {
 
 voucherRoutes.delete('/:id', async (c) => {
     const user = c.get('user')
-    if (user.role !== 'admin' && user.role !== 'cashier') return c.json({ error: 'Forbidden' }, 403)
+    if (user.role !== 'admin') return c.json({ error: 'Forbidden' }, 403)
 
     const id = c.req.param('id')
     const db = getDb(c.env.DB)

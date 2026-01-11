@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/hooks/use-auth"
 import { Loader2 } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { isAuthorized } from "@/lib/routes"
 
 export default function DashboardLayout({
   children,
@@ -15,6 +17,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const { user, isLoading } = useAuth()
+  const pathname = usePathname()
 
   if (isLoading) {
     return (
@@ -27,8 +30,9 @@ export default function DashboardLayout({
     )
   }
 
-  if (!user) return null
-
+  if (!user || !isAuthorized(user.role, pathname)) {
+    return null
+  }
   return (
     <SidebarProvider
       style={

@@ -4,11 +4,12 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo } 
 import { useRouter, usePathname } from "next/navigation"
 import { jwtDecode } from "jwt-decode"
 import { toast } from "sonner"
+import { isAuthorized, Role } from "@/lib/routes"
 
 interface User {
   username: string
   phoneNumber?: string
-  role: 'admin' | 'cashier' | 'customer'
+  role: Role
   name: string
 }
 
@@ -37,8 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Determine which login page to go to based on current path
     const currentPath = window.location.pathname
-    if (currentPath.startsWith("/customer")) {
-      router.push("/customer/login")
+    if (currentPath.startsWith("/dashboard") || currentPath.startsWith("/admin")) {
+      router.push("/admin/login")
     } else {
       router.push("/login")
     }
@@ -75,8 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading) return
 
-    const isLoginPage = pathname.includes("/login")
-    const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/customer/vouchers") || pathname === "/customer"
+    const isLoginPage = pathname === "/login" || pathname === "/admin/login"
+    const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/customer")
 
     if (user) {
       if (isLoginPage) {
@@ -85,11 +86,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           router.push("/dashboard")
         }
+      } else {
+        // Use single source of truth for authorization
+        if (!isAuthorized(user.role, pathname)) {
+          if (user.role === 'customer') {
+            router.push("/customer")
+          } else {
+            router.push("/dashboard")
+            toast.error("You don't have permission to access that page")
+          }
+        }
       }
     } else {
       if (isProtectedRoute && !isLoginPage) {
-        if (pathname.startsWith("/customer")) {
-          router.push(`/customer/login?redirect=${encodeURIComponent(pathname)}`)
+        if (pathname.startsWith("/dashboard")) {
+          router.push(`/admin/login?redirect=${encodeURIComponent(pathname)}`)
         } else {
           router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
         }

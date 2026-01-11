@@ -38,8 +38,14 @@ router.get('/', async (c) => {
     const offset = (page - 1) * limit
 
     let conditions = [isNull(users.deletedAt)]
-    if (role) conditions.push(eq(users.role, role))
-    else if (user.role === 'cashier') conditions.push(eq(users.role, 'customer'))
+    if (role) {
+        if (user.role === 'cashier' && role !== 'customer') {
+            return c.json({ error: 'Forbidden' }, 403)
+        }
+        conditions.push(eq(users.role, role))
+    } else if (user.role === 'cashier') {
+        conditions.push(eq(users.role, 'customer'))
+    }
 
     if (search) {
         const searchFilter = or(

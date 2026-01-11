@@ -27,11 +27,17 @@ router.get('/vouchers', async (c) => {
   if (!targetPhone) return c.json({ error: 'Phone number is required' }, 400)
 
   const conditions = and(eq(vouchers.bindedToPhoneNumber, targetPhone as string), isNull(vouchers.deletedAt))
-  const now = Date.now()
+  const nowEpoch = Math.floor(Date.now() / 1000)
   const [data, total] = await Promise.all([
     db.select().from(vouchers).where(conditions).orderBy(
-      asc(sql`CASE WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR (${vouchers.expiryDate} + 86400000) > ${now}) THEN 1 WHEN ${vouchers.status} = 'claimed' THEN 2 ELSE 3 END`),
-      desc(vouchers.expiryDate)
+      asc(sql`CASE 
+          WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} IS NULL OR (${vouchers.expiryDate} + 86400) > ${nowEpoch}) THEN 1
+          WHEN ${vouchers.status} = 'claimed' THEN 2
+          WHEN ${vouchers.status} = 'active' AND (${vouchers.expiryDate} + 86400) <= ${nowEpoch} THEN 3
+          ELSE 4
+        END`),
+      desc(vouchers.claimRequestedAt),
+      desc(vouchers.createdAt)
     ).limit(limit).offset(offset),
     db.select({ value: count() }).from(vouchers).where(conditions)
   ])
