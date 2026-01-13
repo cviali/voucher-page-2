@@ -100,8 +100,28 @@ export default function VouchersPage() {
     count: 10,
     name: "",
     imageUrl: "",
-    description: ""
+    description: "",
+    expiryDate: ""
   });
+
+  const formatToApiDate = (date: string) => {
+    if (!date || !date.includes("/")) return date;
+    const [day, month, year] = date.split("/");
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  };
+
+  const formatToDisplayDate = (date: string) => {
+    if (!date || !date.includes("-")) return date;
+    const [year, month, day] = date.split("-");
+    return `${day}/${month}/${year}`;
+  };
+
+  useEffect(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 6);
+    setBatchForm(prev => ({ ...prev, expiryDate: formatToDisplayDate(d.toISOString().split("T")[0]) }));
+  }, []);
+
   const [batchImageFile, setBatchImageFile] = useState<File | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -252,7 +272,8 @@ export default function VouchersPage() {
         },
         body: JSON.stringify({
           ...batchForm,
-          imageUrl: currentImageUrl
+          imageUrl: currentImageUrl,
+          expiryDate: formatToApiDate(batchForm.expiryDate)
         }),
       });
       if (res.ok) {
@@ -260,7 +281,15 @@ export default function VouchersPage() {
         setIsBatchSheetOpen(false);
         setBatchImageFile(null);
         setSaveAsTemplate(false);
-        setBatchForm({ count: 10, name: "", imageUrl: "", description: "" });
+        const d = new Date();
+        d.setMonth(d.getMonth() + 6);
+        setBatchForm({
+          count: 10,
+          name: "",
+          imageUrl: "",
+          description: "",
+          expiryDate: formatToDisplayDate(d.toISOString().split("T")[0])
+        });
         fetchVouchers(page);
       } else {
         toast.error("Failed to generate vouchers");
@@ -905,6 +934,29 @@ export default function VouchersPage() {
                 placeholder="e.g. Welcome Discount"
                 value={batchForm.name}
                 onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="batch-expiry">Expiry Date</Label>
+              <Input
+                id="batch-expiry"
+                placeholder="DD/MM/YYYY"
+                value={batchForm.expiryDate}
+                onChange={(e) => {
+                  let val = e.target.value.replace(/\D/g, "");
+                  if (val.length > 2 && val.length <= 4) {
+                    val = val.slice(0, 2) + "/" + val.slice(2);
+                  } else if (val.length > 4) {
+                    val =
+                      val.slice(0, 2) +
+                      "/" +
+                      val.slice(2, 4) +
+                      "/" +
+                      val.slice(4, 8);
+                  }
+                  setBatchForm({ ...batchForm, expiryDate: val });
+                }}
               />
             </div>
 

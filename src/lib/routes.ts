@@ -5,6 +5,7 @@ import {
   IconListDetails,
   IconInnerShadowTop,
   IconHistory,
+  IconCreditCard,
   type Icon
 } from "@tabler/icons-react"
 
@@ -53,6 +54,12 @@ export const ROUTES: Route[] = [
     url: "/dashboard/claims",
     icon: IconInnerShadowTop,
     roles: ["cashier", "admin"],
+  },
+  {
+    title: "Membership",
+    url: "/dashboard/membership",
+    icon: IconCreditCard,
+    roles: ["admin", "cashier"],
   },
   {
     title: "Audit Logs",

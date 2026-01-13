@@ -81,6 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (user) {
       if (isLoginPage) {
+        // If there's a redirect parameter in the URL, don't automatically redirect to default home
+        const searchParams = new URLSearchParams(window.location.search);
+        if (searchParams.has("redirect")) return;
+
         if (user.role === 'customer') {
           router.push("/customer")
         } else {

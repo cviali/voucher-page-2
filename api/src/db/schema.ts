@@ -61,3 +61,21 @@ export const auditLogs = sqliteTable('audit_logs', {
   ipAddress: text('ip_address'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 });
+
+export const visits = sqliteTable('visits', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  customerPhoneNumber: text('customer_phone_number').notNull().references(() => users.phoneNumber),
+  processedBy: text('processed_by').notNull().references(() => users.username),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+
+  // Revocation logic
+  revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+  revokedBy: text('revoked_by').references(() => users.username),
+  revocationReason: text('revocation_reason'),
+
+  // Reward tracking
+  isRewardGenerated: integer('is_reward_generated', { mode: 'boolean' }).default(false),
+  rewardVoucherId: text('reward_voucher_id').references(() => vouchers.id),
+}, (table) => ({
+  customerPhoneIdx: index('visit_customer_phone_idx').on(table.customerPhoneNumber),
+}));

@@ -332,8 +332,9 @@ export default function CustomersPage() {
                   </SheetDescription>
                 </SheetHeader>
                 <form
+                  id="add-customer-form"
                   onSubmit={handleAddCustomer}
-                  className="grid gap-6 p-4"
+                  className="grid gap-6 px-4"
                 >
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
@@ -390,15 +391,22 @@ export default function CustomersPage() {
                       }}
                     />
                   </div>
-                  <SheetFooter className="mt-6">
-                    <Button type="submit" className="w-full h-11 font-bold uppercase tracking-wider" disabled={isAdding}>
-                      {isAdding && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Register Customer
-                    </Button>
-                  </SheetFooter>
                 </form>
+                <SheetFooter className="mt-0">
+                  <Button
+                    type="submit"
+                    form="add-customer-form"
+                    className="w-full"
+                    disabled={isAdding}
+                  >
+                    {isAdding ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" />
+                    )}
+                    Register Customer
+                  </Button>
+                </SheetFooter>
               </SheetContent>
             </Sheet>
           </div>
@@ -522,7 +530,7 @@ export default function CustomersPage() {
       </div>
 
       <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
-        <SheetContent className="sm:max-w-md">
+        <SheetContent className="sm:max-w-md overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               Edit Customer
@@ -535,8 +543,9 @@ export default function CustomersPage() {
             </SheetDescription>
           </SheetHeader>
           <form
+            id="edit-customer-form"
             onSubmit={handleUpdateCustomer}
-            className="grid gap-6 px-4 mt-4"
+            className="grid gap-6 px-4"
           >
             <div className="space-y-2">
               <Label htmlFor="edit-name">Full Name</Label>
@@ -591,29 +600,34 @@ export default function CustomersPage() {
                 }}
               />
             </div>
-            <div className="flex flex-col gap-3">
-              <Button type="submit" className="w-full" disabled={isUpdating}>
-                {isUpdating && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Update Customer
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                className="w-full"
-                onClick={() => handleDeleteCustomer()}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="mr-2 h-4 w-4" />
-                )}
-                Delete Customer
-              </Button>
-            </div>
           </form>
+          <SheetFooter className="mt-6">
+            <Button
+              type="submit"
+              form="edit-customer-form"
+              className="w-full"
+              disabled={isUpdating}
+            >
+              {isUpdating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Update Customer
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="w-full"
+              onClick={() => handleDeleteCustomer()}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Delete Customer
+            </Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
     </div>

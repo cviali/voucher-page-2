@@ -12,6 +12,7 @@ import customers from './routes/customers'
 import templates from './routes/templates'
 import stats from './routes/stats'
 import audit from './routes/audit'
+import visits from './routes/visits'
 
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
@@ -45,5 +46,6 @@ app.route('/customer', customers)
 app.route('/templates', templates)
 app.route('/stats', stats)
 app.route('/audit-logs', audit)
+app.route('/visits', visits)
 
 export default app

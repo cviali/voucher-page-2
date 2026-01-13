@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useAuth } from "@/hooks/use-auth";
-import { useDebounce } from "@/hooks/use-debounce";
 import { getApiUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,12 +48,8 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Loader2,
-  Search,
-  User,
-  Phone,
   ChevronLeft,
   ChevronRight,
-  X,
   Trash2,
   MessageCircle,
   Users,
@@ -63,6 +58,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { formatDate, VOUCHER_STATUS_COLORS, getOptimizedImageUrl } from "@/lib/utils";
+import { CustomerSearch, type DashboardUser } from "@/components/customer-search";
 
 interface Voucher {
   id: string;
@@ -75,12 +71,6 @@ interface Voucher {
   description?: string | null;
   bindedToPhoneNumber?: string;
   customerName?: string;
-}
-
-interface UserResult {
-  id: number;
-  name: string;
-  phoneNumber: string;
 }
 
 export default function BindPage() {
@@ -105,11 +95,7 @@ export default function BindPage() {
   const [limit, setLimit] = useState(30);
 
   // Form state
-  const [searchQuery, setSearchQuery] = useState("");
-  const debouncedSearch = useDebounce(searchQuery, 300);
-  const [searchResults, setSearchResults] = useState<UserResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserResult | null>(null);
+  const [selectedUser, setSelectedUser] = useState<DashboardUser | null>(null);
   const [expiryDate, setExpiryDate] = useState("");
   const [isBinding, setIsBinding] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -147,34 +133,6 @@ export default function BindPage() {
     fetchVouchers(page, activeTab);
   }, [page, activeTab, fetchVouchers]);
 
-  useEffect(() => {
-    const searchUsers = async () => {
-      if (debouncedSearch.length < 2) {
-        setSearchResults([]);
-        return;
-      }
-      setIsSearching(true);
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(
-          getApiUrl(`/users/search?q=${encodeURIComponent(debouncedSearch)}`),
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        if (res.ok) {
-          const data = (await res.json()) as UserResult[];
-          setSearchResults(data);
-        }
-      } catch (err) {
-        console.error("Search error", err);
-      } finally {
-        setIsSearching(false);
-      }
-    };
-    searchUsers();
-  }, [debouncedSearch]);
-
   if (authLoading || !user) return null;
 
   const formatToApiDate = (date: string) => {
@@ -192,7 +150,6 @@ export default function BindPage() {
   const handleRowClick = (voucher: Voucher) => {
     setSelectedVoucher(voucher);
     setSelectedUser(null);
-    setSearchQuery("");
 
     // Set default expiry date to 30 days from now
     const date = new Date();
@@ -853,85 +810,11 @@ export default function BindPage() {
               />
             </div>
 
-            <div className="space-y-4">
-              <Label className="text-xs uppercase text-muted-foreground font-bold">
-                Customer Search
-              </Label>
-
-              {selectedUser ? (
-                <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{selectedUser.name}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" /> {selectedUser.phoneNumber}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSelectedUser(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2 relative">
-                  <div className="relative flex gap-2">
-                    <div className="flex items-center justify-center px-3 rounded-md border bg-muted text-muted-foreground text-sm font-medium">
-                      +62
-                    </div>
-                    <div className="relative flex-1">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search by name or phone..."
-                        className="pl-9"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  {isSearching && (
-                    <div className="absolute z-10 w-full bg-background border rounded-md shadow-lg p-4 flex justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {!isSearching && searchResults.length > 0 && (
-                    <div className="absolute z-10 w-full bg-background border rounded-md shadow-lg overflow-hidden divide-y">
-                      {searchResults.map((u) => (
-                        <button
-                          key={u.id}
-                          className="w-full px-4 py-3 text-left hover:bg-muted transition-colors flex flex-col gap-0.5"
-                          onClick={() => setSelectedUser(u)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">{u.name}</span>
-                            <span className="text-sm font-medium">Customer ID: {u.id}</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {u.phoneNumber}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {!isSearching &&
-                    searchQuery.length >= 2 &&
-                    searchResults.length === 0 && (
-                      <div className="absolute z-10 w-full bg-background border rounded-md shadow-lg p-4 text-center text-sm text-muted-foreground">
-                        No customers found
-                      </div>
-                    )}
-                </div>
-              )}
-            </div>
+            <CustomerSearch
+              selectedUser={selectedUser}
+              onSelect={setSelectedUser}
+              label="Customer Search"
+            />
           </div>
 
           <SheetFooter className="mt-6 flex flex-col gap-3">

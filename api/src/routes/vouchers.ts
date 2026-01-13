@@ -169,6 +169,7 @@ voucherRoutes.post('/', async (c) => {
         name: body.name,
         imageUrl: body.imageUrl,
         description: body.description,
+        expiryDate: body.expiryDate ? new Date(body.expiryDate) : undefined,
     }).returning()
 
     logAudit(db, 'VOUCHER_CREATE', `Created voucher ${newVoucher[0].code}`, c)
@@ -181,7 +182,7 @@ voucherRoutes.post('/batch', async (c) => {
 
     const db = getDb(c.env.DB)
     const body = await c.req.json()
-    const { count: batchCount, name, imageUrl, description, templateId: existingTemplateId } = body
+    const { count: batchCount, name, imageUrl, description, templateId: existingTemplateId, expiryDate } = body
 
     if (!batchCount || batchCount <= 0) return c.json({ error: 'Invalid count' }, 400)
 
@@ -208,7 +209,15 @@ voucherRoutes.post('/batch', async (c) => {
             attempts++
         }
         codeSet.add(code)
-        toInsert.push({ code, status: 'available' as any, templateId, name, imageUrl, description })
+        toInsert.push({
+            code,
+            status: 'available' as any,
+            templateId,
+            name,
+            imageUrl,
+            description,
+            expiryDate: expiryDate ? new Date(expiryDate) : undefined
+        })
     }
 
     const result = await db.insert(vouchers).values(toInsert).returning()
@@ -270,6 +279,7 @@ voucherRoutes.post('/bind', async (c) => {
             bindedToPhoneNumber: normalizePhone(phoneNumber),
             status: 'active' as any,
             approvedAt: new Date(),
+            approvedBy: user.username,
             expiryDate: expiryDate
         })
         .where(eq(vouchers.code, code))
@@ -314,6 +324,7 @@ voucherRoutes.post('/bulk-bind', async (c) => {
             bindedToPhoneNumber: phoneNumber,
             status: 'active' as any,
             approvedAt: new Date(),
+            approvedBy: user.username,
             expiryDate: expiryDate
         }).where(eq(vouchers.id, voucher.id)).returning()
         results.push(updated[0])

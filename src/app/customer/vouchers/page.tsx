@@ -94,9 +94,11 @@ export default function CustomerVouchersPage() {
     <>
       <main className="w-full max-w-[690px] p-6 space-y-6">
         {isLoading || isFetching ? (
-          <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p>Gathering your rewards...</p>
+          <div className="flex h-[60vh] w-full items-center justify-center">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <Loader2 className="h-10 w-10 animate-spin text-primary opacity-80" />
+              <p className="text-sm font-medium text-muted-foreground animate-pulse">Gathering your rewards...</p>
+            </div>
           </div>
         ) : vouchers.length === 0 ? (
           <div className="text-center py-20 space-y-4">
@@ -133,7 +135,7 @@ export default function CustomerVouchersPage() {
                             src={getOptimizedImageUrl(voucher.imageUrl, 600)}
                             alt={voucher.name || "Voucher"}
                             fill
-                            className="object-cover transition-transform duration-500 group-hover:scale-105"
+                            className="object-cover"
                           />
                         ) : (
                           <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
@@ -164,7 +166,6 @@ export default function CustomerVouchersPage() {
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">Voucher Code</span>
-                            <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
                           </div>
                           <h3 className="font-mono text-2xl font-bold tracking-tighter text-foreground">
                             {voucher.code}

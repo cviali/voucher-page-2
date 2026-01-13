@@ -19,6 +19,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   if (pathname === "/customer/vouchers") {
     title = "My Vouchers"
     backHref = "/customer"
+  } else if (pathname === "/customer/membership") {
+    title = "Stamp Card"
+    backHref = "/customer"
   } else if (pathname.startsWith("/customer/vouchers/")) {
     title = "Voucher Details"
     backHref = "/customer/vouchers"

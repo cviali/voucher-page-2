@@ -6,17 +6,25 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { Ticket, Star, LogOut, Loader2 } from "lucide-react";
 
 export default function CustomerHomePage() {
   const { user, isLoading, logout } = useAuth();
   const [isFlipped, setIsFlipped] = useState(false);
 
-  if (isLoading) return <div className="p-8 text-center">Loading...</div>;
+  if (isLoading) return (
+    <div className="flex h-[80vh] w-full items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary opacity-80" />
+        <p className="text-sm font-medium text-muted-foreground animate-pulse">Accessing your membership...</p>
+      </div>
+    </div>
+  );
   if (!user || user.role !== "customer") return null;
 
   return (
     <>
-      <main className="w-full max-w-[690px] p-6 space-y-6 flex flex-col items-center">
+      <main className="w-full max-w-[690px] p-6 space-y-8 flex flex-col items-center">
         {/* Membership Card Container */}
         <div
           className="relative w-full max-w-[400px] aspect-[1.586/1] perspective-1000 cursor-pointer"
@@ -97,19 +105,30 @@ export default function CustomerHomePage() {
           </p>
         </div>
 
-        {/* Navigation Button */}
-        <div className="w-full space-y-4 pt-6">
-          <Link href="/customer/vouchers" className="block w-full">
-            <Button className="w-full h-14 text-base font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg transition-transform active:scale-[0.98]">
-              MY VOUCHERS
+        {/* Navigation Buttons Grid */}
+        <div className="w-full">
+          <Link href="/customer/vouchers" className="block">
+            <Button
+              variant="outline"
+              className="w-full h-auto py-8 flex flex-col items-center gap-3 bg-card hover:bg-muted border-border/60 shadow-sm rounded-2xl active:scale-95 transition-all"
+            >
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                <Ticket className="w-6 h-6" />
+              </div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">My Vouchers</span>
             </Button>
           </Link>
+        </div>
+
+        {/* Logout Button */}
+        <div className="w-full">
           <Button
-            variant="ghost"
-            className="w-full h-12 text-muted-foreground hover:text-foreground font-medium"
+            variant="destructive"
+            className="w-full h-12 hover:text-destructive flex items-center justify-center gap-2 group"
             onClick={logout}
           >
-            LOG OUT
+            <LogOut className="w-4 h-4" />
+            <span className="font-medium">LOG OUT</span>
           </Button>
         </div>
       </main>
