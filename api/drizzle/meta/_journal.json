@@ -92,6 +92,13 @@
       "when": 1768331268148,
       "tag": "0012_small_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1768349803117,
+      "tag": "0013_sad_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

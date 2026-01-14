@@ -33,6 +33,7 @@ export const vouchers = sqliteTable('vouchers', {
   phoneNumberIdx: index('phone_number_idx').on(table.bindedToPhoneNumber),
   statusIdx: index('status_idx').on(table.status),
   createdAtIdx: index('created_at_idx').on(table.createdAt),
+  templateIdIdx: index('template_id_idx').on(table.templateId),
 }));
 
 export const templates = sqliteTable('templates', {
@@ -50,7 +51,10 @@ export const redemptions = sqliteTable('redemptions', {
   amount: integer('amount').notNull(),
   processedBy: text('processed_by').notNull().references(() => users.username),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-});
+}, (table) => ({
+  voucherIdIdx: index('redemption_voucher_idx').on(table.voucherId),
+  customerPhoneIdx: index('redemption_customer_phone_idx').on(table.customerPhoneNumber),
+}));
 
 export const auditLogs = sqliteTable('audit_logs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -60,7 +64,10 @@ export const auditLogs = sqliteTable('audit_logs', {
   username: text('username'), // Denormalized for quick viewing
   ipAddress: text('ip_address'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-});
+}, (table) => ({
+  userIdIdx: index('audit_user_idx').on(table.userId),
+  createdAtIdx: index('audit_created_at_idx').on(table.createdAt),
+}));
 
 export const visits = sqliteTable('visits', {
   id: integer('id').primaryKey({ autoIncrement: true }),
