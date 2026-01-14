@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Ticket, Star, LogOut, Loader2 } from "lucide-react";
+import { Ticket, LogOut, Loader2 } from "lucide-react";
 
 export default function CustomerHomePage() {
   const { user, isLoading, logout } = useAuth();

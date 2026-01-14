@@ -278,8 +278,6 @@ voucherRoutes.post('/bind', async (c) => {
         .set({
             bindedToPhoneNumber: normalizePhone(phoneNumber),
             status: 'active' as any,
-            approvedAt: new Date(),
-            approvedBy: user.username,
             expiryDate: expiryDate
         })
         .where(eq(vouchers.code, code))
@@ -323,8 +321,6 @@ voucherRoutes.post('/bulk-bind', async (c) => {
         const updated = await db.update(vouchers).set({
             bindedToPhoneNumber: phoneNumber,
             status: 'active' as any,
-            approvedAt: new Date(),
-            approvedBy: user.username,
             expiryDate: expiryDate
         }).where(eq(vouchers.id, voucher.id)).returning()
         results.push(updated[0])
@@ -352,6 +348,7 @@ voucherRoutes.post('/claim', async (c) => {
             .set({
                 status: 'claimed',
                 approvedBy: user.username,
+                approvedAt: new Date(),
                 usedAt: new Date(),
                 claimRequestedAt: null,
                 spentAmount: finalSpentAmount

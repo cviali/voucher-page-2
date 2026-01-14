@@ -163,8 +163,6 @@ router.post('/issue-reward', async (c) => {
         imageUrl: template.imageUrl,
         status: 'active',
         bindedToPhoneNumber: normalizedPhone,
-        approvedAt: new Date(),
-        approvedBy: user.username,
         expiryDate: expiresAt ? new Date(expiresAt) : undefined
     }).returning()
 

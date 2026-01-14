@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Plus, RotateCcw, CheckCircle2, User, Gift, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatDate, VOUCHER_STATUS_COLORS, cn, formatDateTimeGMT7 } from "@/lib/utils";
+import { VOUCHER_STATUS_COLORS, cn, formatDateTimeGMT7 } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { CustomerSearch, type DashboardUser } from "@/components/customer-search";

@@ -546,8 +546,7 @@ export default function VouchersPage() {
                     <TableHead>Created At</TableHead>
                     <TableHead>Expiry Date</TableHead>
                     <TableHead>Approved By</TableHead>
-                    <TableHead>Approved At</TableHead>
-                    <TableHead className="pr-6">Used At</TableHead>
+                    <TableHead className="pr-6">Approved At</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -602,11 +601,8 @@ export default function VouchersPage() {
                           {formatDate(voucher.expiryDate)}
                         </TableCell>
                         <TableCell>{voucher.approvedBy || "-"}</TableCell>
-                        <TableCell>
-                          {formatDate(voucher.approvedAt)}
-                        </TableCell>
                         <TableCell className="pr-6">
-                          {formatDate(voucher.usedAt)}
+                          {formatDate(voucher.approvedAt)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -837,20 +833,6 @@ export default function VouchersPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Approved At:</span>
                     <span>{formatDate(selectedVoucher.approvedAt)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedVoucher?.usedAt && (
-              <div className="space-y-2">
-                <Label className="text-xs uppercase text-muted-foreground font-bold">
-                  Usage Info
-                </Label>
-                <div className="rounded-lg border p-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Used At:</span>
-                    <span>{formatDate(selectedVoucher.usedAt)}</span>
                   </div>
                 </div>
               </div>

@@ -32,6 +32,12 @@ export const ROUTES: Route[] = [
     roles: ["admin"],
   },
   {
+    title: "Templates",
+    url: "/dashboard/templates",
+    icon: IconListDetails,
+    roles: ["admin"],
+  },
+  {
     title: "Customers",
     url: "/dashboard/customers",
     icon: IconUsers,
