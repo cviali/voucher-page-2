@@ -9,7 +9,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const pathname = usePathname()
 
   // Don't show navbar on login page
-  if (pathname === "/login") {
+  if (pathname === "/") {
     return <>{children}</>
   }
 

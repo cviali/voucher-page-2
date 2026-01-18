@@ -110,7 +110,13 @@ export default function StaffPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...formData, role: "cashier" }),
+        body: JSON.stringify({
+          ...formData,
+          name: formData.name.trim(),
+          username: formData.username.trim(),
+          phoneNumber: formData.phoneNumber.trim(),
+          role: "cashier",
+        }),
       });
 
       if (res.ok) {
@@ -153,9 +159,9 @@ export default function StaffPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: editFormData.name,
-          phoneNumber: editFormData.phoneNumber,
-          ...(editFormData.password ? { password: editFormData.password } : {}),
+          name: editFormData.name.trim(),
+          phoneNumber: editFormData.phoneNumber.trim(),
+          ...(editFormData.password ? { password: editFormData.password.trim() } : {}),
         }),
       });
 

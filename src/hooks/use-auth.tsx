@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (currentPath.startsWith("/dashboard") || currentPath.startsWith("/admin")) {
       router.push("/admin/login")
     } else {
-      router.push("/login")
+      router.push("/")
     }
   }, [router])
 
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading) return
 
-    const isLoginPage = pathname === "/login" || pathname === "/admin/login"
+    const isLoginPage = pathname === "/" || pathname === "/admin/login"
     const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/customer")
 
     if (user) {
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (pathname.startsWith("/dashboard")) {
           router.push(`/admin/login?redirect=${encodeURIComponent(pathname)}`)
         } else {
-          router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
+          router.push(`/?redirect=${encodeURIComponent(pathname)}`)
         }
       }
     }

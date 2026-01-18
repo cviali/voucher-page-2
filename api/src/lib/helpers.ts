@@ -3,7 +3,13 @@ import { eq, or } from 'drizzle-orm'
 
 export const normalizePhone = (phone: string | null | undefined) => {
     if (!phone) return phone
-    return phone.startsWith('0') ? phone.substring(1) : phone
+    const trimmed = phone.trim()
+    return trimmed.startsWith('0') ? trimmed.substring(1) : trimmed
+}
+
+export const normalizeUsername = (username: string | null | undefined) => {
+    if (!username) return username
+    return username.trim()
 }
 
 export const generateVoucherCode = async (db: any) => {

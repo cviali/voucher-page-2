@@ -55,8 +55,8 @@ voucherRoutes.get('/', async (c) => {
         const page = parseInt(c.req.query('page') || '1')
         const limit = parseInt(c.req.query('limit') || '10')
         const status = c.req.query('status')
-        const search = c.req.query('search')
-        const phoneNumber = c.req.query('phoneNumber')
+        const search = c.req.query('search')?.trim()
+        const phoneNumber = normalizePhone(c.req.query('phoneNumber'))
         const requested = c.req.query('requested') === 'true'
         const offset = (page - 1) * limit
         const nowEpoch = Math.floor(Date.now() / 1000)

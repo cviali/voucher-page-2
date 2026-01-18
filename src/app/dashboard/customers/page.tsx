@@ -159,6 +159,8 @@ export default function CustomersPage() {
         },
         body: JSON.stringify({
           ...formData,
+          name: formData.name.trim(),
+          phoneNumber: formData.phoneNumber.trim(),
           dateOfBirth: formatToApiDate(formData.dateOfBirth),
           role: "customer",
         }),
@@ -205,6 +207,8 @@ export default function CustomersPage() {
         },
         body: JSON.stringify({
           ...editFormData,
+          name: editFormData.name.trim(),
+          phoneNumber: editFormData.phoneNumber.trim(),
           dateOfBirth: formatToApiDate(editFormData.dateOfBirth),
         }),
       });

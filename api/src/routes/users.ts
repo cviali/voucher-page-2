@@ -3,7 +3,7 @@ import { getDb } from '../db/db'
 import { users, vouchers } from '../db/schema'
 import { eq, or, and, isNull, like, desc, count, sql, inArray } from 'drizzle-orm'
 import { hashPassword } from '../lib/crypto'
-import { normalizePhone } from '../lib/helpers'
+import { normalizePhone, normalizeUsername } from '../lib/helpers'
 import { logAudit } from '../lib/audit'
 import { authMiddleware } from '../middleware/auth'
 import { Bindings, Variables } from '../types'
@@ -34,7 +34,7 @@ router.get('/', async (c) => {
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '10')
     const role = c.req.query('role') as any
-    const search = c.req.query('search')
+    const search = c.req.query('search')?.trim()
     const offset = (page - 1) * limit
 
     let conditions = [isNull(users.deletedAt)]
@@ -74,7 +74,7 @@ router.post('/', async (c) => {
 
     const db = getDb(c.env.DB)
     const normalizedPhone = normalizePhone(body.phoneNumber)
-    const username = targetRole === 'customer' ? (body.username || normalizedPhone) : body.username
+    const username = targetRole === 'customer' ? (normalizeUsername(body.username) || normalizedPhone) : normalizeUsername(body.username)
     const password = targetRole === 'customer' ? (body.password || body.dateOfBirth?.replace(/-/g, '')) : body.password
     const hashedPassword = await hashPassword(password)
 
@@ -102,7 +102,7 @@ router.patch('/:id', async (c) => {
 
     const updateData: any = {}
     if (body.name !== undefined) updateData.name = body.name
-    if (body.username !== undefined) updateData.username = body.username
+    if (body.username !== undefined) updateData.username = normalizeUsername(body.username)
     if (body.phoneNumber !== undefined) updateData.phoneNumber = normalizePhone(body.phoneNumber)
     if (body.dateOfBirth !== undefined) updateData.dateOfBirth = body.dateOfBirth
     if (body.password) updateData.password = await hashPassword(body.password)

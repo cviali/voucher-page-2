@@ -173,7 +173,7 @@ export default function BindPage() {
         },
         body: JSON.stringify({
           code: selectedVoucher.code,
-          phoneNumber: selectedUser.phoneNumber,
+          phoneNumber: selectedUser.phoneNumber.trim(),
           expiryDate: formatToApiDate(expiryDate),
         }),
       });

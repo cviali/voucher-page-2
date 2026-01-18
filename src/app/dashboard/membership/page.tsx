@@ -143,7 +143,7 @@ export default function MembershipPage() {
                     Authorization: `Bearer ${localStorage.getItem("token")}`,
                 },
                 body: JSON.stringify({
-                    phoneNumber: selectedUser.phoneNumber,
+                    phoneNumber: selectedUser.phoneNumber.trim(),
                     rewardTemplateId: selectedTemplateId ? parseInt(selectedTemplateId) : undefined
                 }),
             });
@@ -174,7 +174,7 @@ export default function MembershipPage() {
                     Authorization: `Bearer ${localStorage.getItem("token")}`,
                 },
                 body: JSON.stringify({
-                    phoneNumber: selectedUser.phoneNumber,
+                    phoneNumber: selectedUser.phoneNumber.trim(),
                     rewardTemplateId: selectedTemplateId ? parseInt(selectedTemplateId) : undefined,
                     expiresAt: formatToApiDate(expiryDate)
                 }),

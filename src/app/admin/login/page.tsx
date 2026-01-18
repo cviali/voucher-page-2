@@ -25,10 +25,11 @@ function LoginForm() {
     setIsLoading(true)
 
     try {
+      const trimmedUsername = username.trim()
       const res = await fetch(getApiUrl('/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: trimmedUsername, password })
       })
 
       const data = await res.json() as { token: string; user: { username: string; phoneNumber?: string; role: 'admin' | 'cashier' | 'customer'; name: string }; error?: string }

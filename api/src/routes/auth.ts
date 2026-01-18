@@ -4,7 +4,7 @@ import { users } from '../db/schema'
 import { eq, or, and, isNull } from 'drizzle-orm'
 import { SignJWT } from 'jose'
 import { verifyPassword } from '../lib/crypto'
-import { normalizePhone } from '../lib/helpers'
+import { normalizePhone, normalizeUsername } from '../lib/helpers'
 import { logAudit } from '../lib/audit'
 import { getJwtSecret, authMiddleware } from '../middleware/auth'
 import { Bindings, Variables } from '../types'
@@ -14,10 +14,11 @@ const auth = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 auth.post('/login', async (c) => {
     const db = getDb(c.env.DB)
     const { username, password } = await c.req.json()
+    const normalizedUsername = normalizeUsername(username)
 
     const user = await db.query.users.findFirst({
         where: and(
-            eq(users.username, username),
+            eq(users.username, normalizedUsername as string),
             or(eq(users.role, 'admin'), eq(users.role, 'cashier')),
             isNull(users.deletedAt)
         )
