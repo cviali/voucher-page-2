@@ -119,9 +119,6 @@ export default function MembershipProgressPage() {
                             View My Rewards
                         </Button>
                     </Link>
-                    <p className="text-center text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-                        Thank you for being a regular!
-                    </p>
                 </div>
             </main>
         </div>

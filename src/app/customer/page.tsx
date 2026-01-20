@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Ticket, LogOut, Loader2 } from "lucide-react";
+import { Ticket, LogOut, Loader2, Star } from "lucide-react";
 
 export default function CustomerHomePage() {
   const { user, isLoading, logout } = useAuth();
@@ -106,7 +106,7 @@ export default function CustomerHomePage() {
         </div>
 
         {/* Navigation Buttons Grid */}
-        <div className="w-full">
+        <div className="w-full grid grid-cols-2 gap-4">
           <Link href="/customer/vouchers" className="block">
             <Button
               variant="outline"
@@ -116,6 +116,17 @@ export default function CustomerHomePage() {
                 <Ticket className="w-6 h-6" />
               </div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">My Vouchers</span>
+            </Button>
+          </Link>
+          <Link href="/customer/membership" className="block">
+            <Button
+              variant="outline"
+              className="w-full h-auto py-8 flex flex-col items-center gap-3 bg-card hover:bg-muted border-border/60 shadow-sm rounded-2xl active:scale-95 transition-all"
+            >
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                <Star className="w-6 h-6" />
+              </div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">My Membership</span>
             </Button>
           </Link>
         </div>
