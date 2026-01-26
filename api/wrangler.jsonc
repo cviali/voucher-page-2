@@ -1,6 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "voucher-api",
+	"account_id": "d593d832e290ed77d9545f78450abc1e",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-12-01",
 	"workers_dev": false,
