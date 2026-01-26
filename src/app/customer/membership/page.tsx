@@ -5,8 +5,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
-import { Info, Check, Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { getApiUrl } from "@/lib/api-config";
+import { MemberCheck } from "@/components/member-check";
 
 export default function MembershipProgressPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -91,7 +92,7 @@ export default function MembershipProgressPage() {
                                                 : "bg-muted/50 border-dashed border-muted-foreground/30"
                                                 }`}>
                                                 {isStamped ? (
-                                                    <Check className="w-6 h-6 text-primary-foreground stroke-[3px]" />
+                                                    <MemberCheck className="w-15 h-15 text-primary-foreground" />
                                                 ) : (
                                                     <span className="text-sm font-bold text-muted-foreground/40">{i + 1}</span>
                                                 )}

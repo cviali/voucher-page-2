@@ -63,7 +63,10 @@ const gotham = localFont({
 });
 
 export const metadata: Metadata = {
-	title: "Voucher System",
+	title: {
+		default: "The Cue House | Voucher System",
+		template: "%s | The Cue House",
+	},
 	description: "Restaurant Voucher Management System",
 };
 

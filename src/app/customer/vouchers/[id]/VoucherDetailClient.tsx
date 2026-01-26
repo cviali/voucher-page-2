@@ -135,9 +135,9 @@ export default function VoucherDetailClient({ params }: { params: Promise<{ id: 
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-foreground">
+                <div className="flex gap-2 text-foreground">
                   <Info className="w-5 h-5" />
-                  <h3 className="font-bold">Terms & Conditions</h3>
+                  <span className="font-medium">Terms & Conditions</span>
                 </div>
                 <ul className="space-y-1">
                   {terms.map((term, index) => (

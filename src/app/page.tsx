@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
 import { getApiUrl } from "@/lib/api-config"
+import { BrandLogo } from "@/components/brand-logo"
 
 function CustomerLoginForm() {
   const [phoneNumber, setPhoneNumber] = useState("")
@@ -56,9 +57,12 @@ function CustomerLoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+      <div className="mb-3 w-full max-w-[100px] text-foreground">
+        <BrandLogo className="w-full h-auto" />
+      </div>
       <Card className="w-[350px] border-none shadow-none sm:border sm:shadow-sm">
-        <CardHeader>
+        <CardHeader className="gap-0.5">
           <CardTitle className="text-2xl font-bold">Customer Login</CardTitle>
           <CardDescription>Enter your phone number and date of birth.</CardDescription>
         </CardHeader>

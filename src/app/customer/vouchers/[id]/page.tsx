@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         openGraph: {
           title: title,
           description: defaultDescription,
-          siteName: 'Voucher Portal',
+          siteName: 'The Cue House',
           images: [{
             url: absoluteImageUrl,
             width: 1200,

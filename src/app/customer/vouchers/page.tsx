@@ -154,7 +154,7 @@ export default function CustomerVouchersPage() {
                         </div>
 
                         {/* Bottom Gradient for Name */}
-                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 to-transparent" />
                         <div className="absolute bottom-4 left-6 right-6">
                           <h2 className="text-white font-bold text-xl drop-shadow-md truncate">
                             {voucher.name || "Special Offer"}
@@ -163,9 +163,9 @@ export default function CustomerVouchersPage() {
                       </div>
 
                       <CardContent className="px-6 py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-card gap-4">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">Voucher Code</span>
+                        <div>
+                          <div className="flex items-center">
+                            <span className="text-[10px] font-bold text-muted-foreground">Voucher Code</span>
                           </div>
                           <h3 className="font-mono text-2xl font-bold tracking-tighter text-foreground">
                             {voucher.code}
