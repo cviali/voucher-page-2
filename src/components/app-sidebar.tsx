@@ -28,7 +28,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center gap-2 py-2 overflow-hidden">
+            <div className="flex items-center gap-2 p-2 overflow-hidden">
               <BrandLogo className="h-10 w-auto text-sidebar-foreground" />
             </div>
           </SidebarMenuItem>
